@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RC Design Tool — EC2</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#14110f;--slate:#2b3a42;--slate-mid:#3d525c;--slate-light:#556b77;
+  --rust:#c0563b;--rust-dim:#9a4530;
+  --pass:#2e9e5b;--fail:#d14836;--warn:#e09020;
+  --bg:#eceae5;--card:#ffffff;--border:#cfcbc2;
+  --text:#14110f;--muted:#6b655c;
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--slate);border-bottom:3px solid var(--rust)}
+.hdr{max-width:1180px;margin:0 auto;padding:16px 28px;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+.hdr-title{font-family:var(--mono);font-size:1rem;font-weight:600;color:#fff;letter-spacing:.04em}
+.hdr-sub{font-size:.72rem;font-weight:300;color:rgba(255,255,255,.5);letter-spacing:.08em;text-transform:uppercase}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.hdr-code{font-family:var(--mono);font-size:.68rem;color:var(--rust);letter-spacing:.06em}
+.btn-export-hdr{padding:7px 14px;font-family:var(--mono);font-size:.7rem;font-weight:600;letter-spacing:.05em;border:1px solid var(--rust);border-radius:3px;background:rgba(192,86,59,.15);color:#f0a090;cursor:pointer;transition:all .15s}
+.btn-export-hdr:hover{background:rgba(192,86,59,.3);color:#fff}
+.nav{max-width:1180px;margin:0 auto;padding:18px 28px 0;display:flex;gap:3px;flex-wrap:wrap}
+.nav-btn{padding:8px 14px;font-family:var(--mono);font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:none;background:rgba(0,0,0,.06);color:var(--muted);cursor:pointer;border-radius:3px 3px 0 0;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.nav-btn.active{background:var(--card);color:var(--slate);border-color:var(--rust)}
+.nav-btn:hover:not(.active){background:rgba(0,0,0,.09);color:var(--slate)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px 48px}
+.panel{display:none}.panel.active{display:block}
+.two-col{display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start;padding-top:4px}
+.full-col{padding-top:4px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:4px;margin-bottom:16px}
+.card:last-child{margin-bottom:0}
+.card-hdr{padding:11px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.card-lbl{font-family:var(--mono);font-size:.65rem;font-weight:600;color:var(--muted);letter-spacing:.12em;text-transform:uppercase}
+.form-inner{padding:16px;display:flex;flex-direction:column;gap:12px}
+.field{display:flex;flex-direction:column;gap:4px}
+label{font-size:.68rem;font-weight:500;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+select,input[type=number],input[type=text]{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:3px;font-family:var(--mono);font-size:.8rem;color:var(--text);background:#faf9f7;-webkit-appearance:none;transition:border-color .15s}
+select:focus,input:focus{outline:none;border-color:var(--rust);background:#fff}
+.iu{display:flex;align-items:stretch;border:1px solid var(--border);border-radius:3px;overflow:hidden;background:#faf9f7;transition:border-color .15s}
+.iu:focus-within{border-color:var(--rust);background:#fff}
+.iu input{border:none;flex:1;border-radius:0;background:transparent;padding:7px 10px}
+.iu input:focus{outline:none;background:transparent}
+.utag{padding:0 10px;font-family:var(--mono);font-size:.68rem;color:var(--muted);background:#e8e5df;border-left:1px solid var(--border);display:flex;align-items:center;white-space:nowrap}
+.hint{font-size:.65rem;color:var(--muted);font-style:italic}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sub-tabs{display:flex;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.sub-tab{flex:1;padding:10px 6px;text-align:center;font-family:var(--mono);font-size:.67rem;font-weight:600;color:var(--muted);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .15s;letter-spacing:.03em;min-width:70px}
+.sub-tab.active{color:var(--slate);border-bottom-color:var(--rust);background:rgba(192,86,59,.05)}
+.sub-tab:hover:not(.active){color:var(--slate);background:rgba(0,0,0,.03)}
+.btn{width:100%;padding:11px;background:var(--slate);color:#fff;border:none;border-radius:3px;font-family:var(--mono);font-size:.82rem;font-weight:600;letter-spacing:.06em;cursor:pointer;transition:background .15s;margin-top:2px}
+.btn:hover{background:var(--slate-mid)}
+.btn-send{background:var(--rust);margin-top:0}
+.btn-send:hover{background:var(--rust-dim)}
+.placeholder{padding:48px 24px;text-align:center;color:var(--muted)}
+.placeholder-icon{font-size:1.8rem;margin-bottom:8px;opacity:.25}
+.placeholder p{font-size:.78rem;line-height:1.7}
+.util-card{padding:18px}
+.util-hdr{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px;gap:10px;flex-wrap:wrap}
+.util-name{font-family:var(--mono);font-size:.95rem;font-weight:600;color:var(--slate)}
+.verdict{font-family:var(--mono);font-size:.68rem;font-weight:600;padding:3px 9px;border-radius:2px;letter-spacing:.06em;white-space:nowrap}
+.vpass{background:rgba(46,158,91,.13);color:#1d7a44}
+.vfail{background:rgba(209,72,54,.13);color:#a83523}
+.vna{background:rgba(107,101,92,.12);color:var(--muted)}
+.vwarn{background:rgba(224,144,32,.15);color:#8a5800}
+.ubar-wrap{margin:8px 0 4px;background:#e8e5df;border-radius:2px;height:8px;overflow:hidden}
+.ubar-fill{height:100%;border-radius:2px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+.uratio{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+.dg{display:grid;border-top:1px solid var(--border);border-left:1px solid var(--border)}
+.dg-3{grid-template-columns:1fr 1fr 1fr}.dg-2{grid-template-columns:1fr 1fr}
+.dc{padding:9px 13px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.dc-lbl{font-size:.6rem;font-weight:500;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+.dc-val{font-family:var(--mono);font-size:.83rem;font-weight:500;color:var(--slate)}
+.dc-unit{font-family:var(--mono);font-size:.62rem;color:var(--muted);margin-left:2px}
+.steps{list-style:none}
+.step{display:flex;gap:12px;padding:9px 16px;border-bottom:1px solid var(--border)}
+.step:last-child{border-bottom:none}
+.sk{font-family:var(--mono);font-size:.67rem;color:var(--rust-dim);font-weight:600;min-width:80px;letter-spacing:.04em;padding-top:1px}
+.sd{font-size:.72rem;color:var(--muted);line-height:1.5;flex:1}
+.sv{font-family:var(--mono);font-size:.78rem;font-weight:600;color:var(--slate);text-align:right;min-width:80px;padding-top:1px}
+.reading{padding:12px 16px;display:flex;flex-direction:column;gap:7px}
+.read-line{display:flex;gap:9px;padding:8px 11px;border-radius:3px;align-items:flex-start;font-size:.73rem;line-height:1.6}
+.read-icon{font-family:var(--mono);font-size:.73rem;font-weight:700;flex-shrink:0;margin-top:1px}
+.rl-good{background:rgba(46,158,91,.08);border:1px solid rgba(46,158,91,.3)}
+.rl-good .read-icon{color:#1d7a44}
+.rl-warn{background:rgba(224,144,32,.08);border:1px solid rgba(224,144,32,.3)}
+.rl-warn .read-icon{color:#8a5800}
+.rl-fail{background:rgba(209,72,54,.07);border:1px solid rgba(209,72,54,.28)}
+.rl-fail .read-icon{color:#a83523}
+.notice{margin:12px 16px;padding:9px 13px;background:rgba(192,86,59,.07);border:1px solid rgba(192,86,59,.22);border-radius:3px;font-size:.7rem;color:#7a3522;line-height:1.6}
+.notice.info{background:rgba(61,82,92,.06);border-color:rgba(61,82,92,.2);color:#2b3a42}
+.footnote{font-size:.62rem;color:var(--muted);padding:3px 2px;font-family:var(--mono)}
+.err{padding:12px 16px;background:rgba(209,72,54,.08);border:1px solid rgba(209,72,54,.28);border-radius:3px;font-size:.78rem;color:#a83523;font-family:var(--mono)}
+/* anchorage table */
+.anc-tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.75rem}
+.anc-tbl th{padding:7px 12px;text-align:left;font-size:.63rem;font-weight:600;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;border-bottom:2px solid var(--border);background:#faf9f7}
+.anc-tbl td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--slate)}
+.anc-tbl tr:hover td{background:rgba(192,86,59,.04)}
+.anc-tbl .good{color:var(--pass);font-weight:600}
+.anc-tbl .poor{color:var(--warn);font-weight:600}
+/* log */
+.log-entry{border:1px solid var(--border);border-radius:3px;margin-bottom:10px;overflow:hidden}
+.log-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:#faf9f7;border-bottom:1px solid var(--border)}
+.log-title{font-family:var(--mono);font-size:.74rem;font-weight:600;color:var(--slate)}
+.log-status-pass{font-family:var(--mono);font-size:.64rem;font-weight:600;color:var(--pass)}
+.log-status-fail{font-family:var(--mono);font-size:.64rem;font-weight:600;color:var(--fail)}
+.log-body{padding:10px 14px}
+.log-assm{font-size:.7rem;color:var(--text);padding:1px 0;display:flex;gap:7px}
+.log-assm-arrow{color:var(--rust-dim);font-family:var(--mono)}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--slate);color:#fff;padding:11px 16px;border-radius:4px;font-family:var(--mono);font-size:.74rem;z-index:9999;border-left:3px solid var(--rust);box-shadow:0 4px 16px rgba(0,0,0,.2);transition:opacity .3s}
+@media(max-width:860px){
+  .two-col{grid-template-columns:1fr}
+  .dg-3{grid-template-columns:1fr 1fr}
+  .nav,.wrap,.hdr{padding-left:14px;padding-right:14px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr">
+    <div>
+      <div class="hdr-title">RC Design Tool</div>
+      <div class="hdr-sub">EC2 · BS EN 1992 · Preliminary design</div>
+    </div>
+    <div class="hdr-right">
+      <span class="hdr-code">γC=1.5 · γS=1.15</span>
+      <button class="btn-export-hdr" onclick="sendToTemplate()">⬆ Send to Template</button>
+    </div>
+  </div>
+</header>
+
+<div class="nav">
+  <button class="nav-btn active" onclick="goTab('beam')">Beam</button>
+  <button class="nav-btn" onclick="goTab('column')">Column</button>
+  <button class="nav-btn" onclick="goTab('slab')">Slab</button>
+  <button class="nav-btn" onclick="goTab('wall')">Wall</button>
+  <button class="nav-btn" onclick="goTab('crack')">Crack Width</button>
+  <button class="nav-btn" onclick="goTab('anchorage')">Anchorage</button>
+  <button class="nav-btn" onclick="goTab('thermal')">Thermal</button>
+  <button class="nav-btn" onclick="goTab('log')">📋 Calc Log</button>
+</div>
+
+<div class="wrap">
+
+<!-- ═══ BEAM ═══ -->
+<div class="panel active" id="panel-beam">
+  <div class="two-col">
+    <div class="card form-inner">
+      <div class="notice info">Rectangular RC beam — bending + shear. EC2 Cl 6.1 + 6.2.</div>
+      <div class="row2">
+        <div class="field"><label>fck</label><select id="bm-fck"><option value="25">C25/30</option><option value="30" selected>C30/37</option><option value="32">C32/40</option><option value="35">C35/45</option><option value="40">C40/50</option></select></div>
+        <div class="field"><label>fyk</label><select id="bm-fyk"><option value="500" selected>B500</option><option value="460">B460</option></select></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Width b</label><div class="iu"><input type="number" id="bm-b" value="300" min="100"><span class="utag">mm</span></div></div>
+        <div class="field"><label>Eff. depth d</label><div class="iu"><input type="number" id="bm-d" value="450" min="100"><span class="utag">mm</span></div></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Span L</label><div class="iu"><input type="number" id="bm-span" value="6.0" min="0.5" step="0.5"><span class="utag">m</span></div></div>
+        <div class="field"><label>Support condition</label><select id="bm-sup"><option value="1.0">Simply supported</option><option value="1.3" selected>End span</option><option value="1.5">Interior span</option></select></div>
+      </div>
+      <div class="field"><label>Design Moment MEd</label><div class="iu"><input type="number" id="bm-med" value="150" min="0"><span class="utag">kNm</span></div></div>
+      <div class="field"><label>Design Shear VEd</label><div class="iu"><input type="number" id="bm-ved" value="120" min="0"><span class="utag">kN</span></div></div>
+      <div class="field"><label>Tension reinforcement</label>
+        <div class="row2">
+          <select id="bm-bardia"><option value="12">H12</option><option value="16">H16</option><option value="20" selected>H20</option><option value="25">H25</option><option value="32">H32</option></select>
+          <input type="number" id="bm-nbars" value="4" min="1" max="20">
+        </div></div>
+      <div class="field"><label>Shear links</label>
+        <div class="row2">
+          <select id="bm-ldia"><option value="8">H8</option><option value="10" selected>H10</option><option value="12">H12</option></select>
+          <select id="bm-legs"><option value="2" selected>2 legs</option><option value="3">3 legs</option><option value="4">4 legs</option></select>
+        </div></div>
+      <div class="field"><label>Link spacing s</label><div class="iu"><input type="number" id="bm-s" value="200" min="50" max="400"><span class="utag">mm</span></div></div>
+      <button class="btn" onclick="runBeam()">▶ DESIGN BEAM</button>
+    </div>
+    <div id="out-beam"><div class="card placeholder"><div class="placeholder-icon">▭</div><p>Rectangular RC beam.<br>K · z · As · shear links.</p></div></div>
+  </div>
+</div>
+
+<!-- ═══ COLUMN ═══ -->
+<div class="panel" id="panel-column">
+  <div class="two-col">
+    <div class="card form-inner">
+      <div class="notice info">Column N–M interaction diagram. EC2 Cl 6.1.</div>
+      <div class="row2">
+        <div class="field"><label>fck</label><select id="cc-fck"><option value="25">C25/30</option><option value="30" selected>C30/37</option><option value="32">C32/40</option><option value="35">C35/45</option><option value="40">C40/50</option></select></div>
+        <div class="field"><label>fyk</label><select id="cc-fyk"><option value="500" selected>B500</option></select></div>
+      </div>
+      <div class="field"><label>Shape</label><select id="cc-shape" onchange="toggleShape()"><option value="rect">Rectangular</option><option value="circ">Circular</option></select></div>
+      <div id="cc-rect"><div class="row2">
+        <div class="field"><label>Width b</label><div class="iu"><input type="number" id="cc-b" value="300" min="100"><span class="utag">mm</span></div></div>
+        <div class="field"><label>Height h</label><div class="iu"><input type="number" id="cc-h" value="400" min="100"><span class="utag">mm</span></div></div>
+      </div></div>
+      <div id="cc-circ" style="display:none">
+        <div class="field"><label>Diameter D</label><div class="iu"><input type="number" id="cc-D" value="450" min="150"><span class="utag">mm</span></div></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Cover (to link)</label><div class="iu"><input type="number" id="cc-cov" value="35" min="15"><span class="utag">mm</span></div></div>
+        <div class="field"><label>Link dia</label><select id="cc-lnk"><option value="8">H8</option><option value="10" selected>H10</option><option value="12">H12</option></select></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Bar dia</label><select id="cc-dia"><option value="16">H16</option><option value="20" selected>H20</option><option value="25">H25</option><option value="32">H32</option></select></div>
+        <div class="field"><label>Bars/face (rect) or total (circ)</label><input type="number" id="cc-nbars" value="3" min="2" max="10"></div>
+      </div>
+      <div class="field"><label>NEd</label><div class="iu"><input type="number" id="cc-ned" value="1200" min="0"><span class="utag">kN</span></div></div>
+      <div class="field"><label>MEd</label><div class="iu"><input type="number" id="cc-med" value="120" min="0"><span class="utag">kNm</span></div></div>
+      <button class="btn" onclick="runColumn()">▶ PLOT INTERACTION</button>
+    </div>
+    <div id="out-column"><div class="card placeholder"><div class="placeholder-icon">▭</div><p>N–M interaction diagram.<br>Design point plotted against capacity envelope.</p></div></div>
+  </div>
+</div>
+
+<!-- ═══ SLAB ═══ -->
+<div class="panel" id="panel-slab">
+  <div class="two-col">
+    <div class="card form-inner">
+      <div class="notice info">One-way slab per metre. EC2 Cl 6.1 / 6.2 / 7.4.</div>
+      <div class="row2">
+        <div class="field"><label>fck</label><select id="sl-fck"><option value="25">C25/30</option><option value="30" selected>C30/37</option><option value="32">C32/40</option></select></div>
+        <div class="field"><label>fyk</label><select id="sl-fyk"><option value="500" selected>B500</option></select></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Depth h</label><div class="iu"><input type="number" id="sl-h" value="200" min="80"><span class="utag">mm</span></div></div>
+        <div class="field"><label>Cover</label><div class="iu"><input type="number" id="sl-cov" value="25" min="15"><span class="utag">mm</span></div></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Bar dia</label><select id="sl-dia"><option value="10">H10</option><option value="12" selected>H12</option><option value="16">H16</option><option value="20">H20</option></select></div>
+        <div class="field"><label>Support</label><select id="sl-sup"><option value="1.0">Simply supported</option><option value="1.3">End span</option><option value="1.5">Interior span</option></select></div>
+      </div>
+      <div class="field"><label>MEd</label><div class="iu"><input type="number" id="sl-med" value="25" min="0"><span class="utag">kNm/m</span></div></div>
+      <div class="field"><label>VEd</label><div class="iu"><input type="number" id="sl-ved" value="35" min="0"><span class="utag">kN/m</span></div></div>
+      <div class="field"><label>Span</label><div class="iu"><input type="number" id="sl-span" value="5.0" min="0.5" step="0.5"><span class="utag">m</span></div></div>
+      <button class="btn" onclick="runSlab()">▶ DESIGN SLAB</button>
+    </div>
+    <div id="out-slab"><div class="card placeholder"><div class="placeholder-icon">▭</div><p>One-way slab per metre.<br>Bending · shear · deflection · bar spacing.</p></div></div>
+  </div>
+</div>
+
+<!-- ═══ WALL ═══ -->
+<div class="panel" id="panel-wall">
+  <div class="two-col">
+    <div class="card">
+      <div class="sub-tabs">
+        <button class="sub-tab active" id="wl-sh-tab" onclick="switchWall('sh')">SHEAR WALL</button>
+        <button class="sub-tab" id="wl-rt-tab" onclick="switchWall('rt')">RETAINING WALL</button>
+      </div>
+      <!-- Shear wall -->
+      <div id="wl-sh-form" class="form-inner">
+        <div class="notice info">In-plane shear wall. EC2 Cl 6.2 + Cl 9.6.</div>
+        <div class="row2">
+          <div class="field"><label>fck</label><select id="sw-fck"><option value="25">C25/30</option><option value="30" selected>C30/37</option><option value="32">C32/40</option><option value="35">C35/45</option></select></div>
+          <div class="field"><label>fyk</label><select id="sw-fyk"><option value="500" selected>B500</option></select></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Wall length lw</label><div class="iu"><input type="number" id="sw-lw" value="4.0" min="0.5" step="0.5"><span class="utag">m</span></div></div>
+          <div class="field"><label>Thickness t</label><div class="iu"><input type="number" id="sw-t" value="200" min="150"><span class="utag">mm</span></div></div>
+        </div>
+        <div class="field"><label>NEd (axial)</label><div class="iu"><input type="number" id="sw-ned" value="1500" min="0"><span class="utag">kN</span></div></div>
+        <div class="field"><label>VEd (in-plane shear)</label><div class="iu"><input type="number" id="sw-ved" value="400" min="0"><span class="utag">kN</span></div></div>
+        <div class="field"><label>MEd (overturning moment)</label><div class="iu"><input type="number" id="sw-med" value="1200" min="0"><span class="utag">kNm</span></div></div>
+        <button class="btn" onclick="runShearWall()">▶ CHECK WALL</button>
+      </div>
+      <!-- Retaining wall -->
+      <div id="wl-rt-form" class="form-inner" style="display:none">
+        <div class="notice info">Cantilever retaining wall — stem bending + shear. EC2 + EC7 simplified.</div>
+        <div class="row2">
+          <div class="field"><label>fck</label><select id="rw-fck"><option value="25" selected>C25/30</option><option value="30">C30/37</option><option value="32">C32/40</option><option value="35">C35/45</option></select></div>
+          <div class="field"><label>Retained height H</label><div class="iu"><input type="number" id="rw-H" value="3.0" min="0.5" step="0.5"><span class="utag">m</span></div></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Stem thickness</label><div class="iu"><input type="number" id="rw-t" value="300" min="150"><span class="utag">mm</span></div></div>
+          <div class="field"><label>Cover (stem)</label><div class="iu"><input type="number" id="rw-cov" value="50" min="35"><span class="utag">mm</span></div></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Soil unit weight γs</label><div class="iu"><input type="number" id="rw-gs" value="18" min="14"><span class="utag">kN/m³</span></div></div>
+          <div class="field"><label>Ka (active coeff.)</label><div class="iu"><input type="number" id="rw-Ka" value="0.33" min="0.1" max="0.6" step="0.01"><span class="utag">—</span></div></div>
+        </div>
+        <div class="field"><label>Surcharge q</label><div class="iu"><input type="number" id="rw-q" value="5" min="0"><span class="utag">kN/m²</span></div></div>
+        <button class="btn" onclick="runRetaining()">▶ CHECK WALL</button>
+      </div>
+    </div>
+    <div id="out-wall"><div class="card placeholder"><div class="placeholder-icon">▭</div><p>Shear wall or retaining wall.<br>Reinforcement · shear · stability notes.</p></div></div>
+  </div>
+</div>
+
+<!-- ═══ CRACK WIDTH ═══ -->
+<div class="panel" id="panel-crack">
+  <div class="two-col">
+    <div class="card form-inner">
+      <div class="notice info">Characteristic crack width wk. EC2 Cl 7.3.4. Use SLS quasi-permanent moment.</div>
+      <div class="row2">
+        <div class="field"><label>fck</label><select id="cr-fck"><option value="25">C25/30</option><option value="30" selected>C30/37</option><option value="32">C32/40</option><option value="35">C35/45</option><option value="40">C40/50</option></select></div>
+        <div class="field"><label>Exposure</label>
+          <select id="cr-exp">
+            <option value="XC1_0.3">XC1 — wk≤0.3mm</option>
+            <option value="XC2_0.3">XC2 — wk≤0.3mm</option>
+            <option value="XC3_0.3">XC3 — wk≤0.3mm</option>
+            <option value="XD1_0.3">XD1 — wk≤0.3mm</option>
+            <option value="XD2_0.2">XD2 — wk≤0.2mm</option>
+            <option value="XS2_0.2">XS2 — wk≤0.2mm</option>
+          </select></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Width b</label><div class="iu"><input type="number" id="cr-b" value="300" min="100"><span class="utag">mm</span></div></div>
+        <div class="field"><label>Total depth h</label><div class="iu"><input type="number" id="cr-h" value="500" min="100"><span class="utag">mm</span></div></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Eff. depth d</label><div class="iu"><input type="number" id="cr-d" value="450" min="50"><span class="utag">mm</span></div></div>
+        <div class="field"><label>Cover c</label><div class="iu"><input type="number" id="cr-cov" value="35" min="15"><span class="utag">mm</span></div></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Bar dia</label><select id="cr-dia"><option value="10">H10</option><option value="12">H12</option><option value="16" selected>H16</option><option value="20">H20</option><option value="25">H25</option></select></div>
+        <div class="field"><label>As provided</label><div class="iu"><input type="number" id="cr-As" value="1200" min="100"><span class="utag">mm²</span></div></div>
+      </div>
+      <div class="field"><label>MEd (SLS quasi-permanent)</label><div class="iu"><input type="number" id="cr-med" value="120" min="0"><span class="utag">kNm</span></div></div>
+      <div class="field"><label>Bond condition</label>
+        <select id="cr-bond"><option value="good">Good — bottom/side bars</option><option value="poor">Poor — top bars or h>300mm</option></select></div>
+      <button class="btn" onclick="runCrack()">▶ CALCULATE wk</button>
+    </div>
+    <div id="out-crack"><div class="card placeholder"><div class="placeholder-icon">▭</div><p>Crack width wk vs limit.<br>EC2 Cl 7.3.4 · σs · sr,max · εsm−εcm.</p></div></div>
+  </div>
+</div>
+
+<!-- ═══ ANCHORAGE ═══ -->
+<div class="panel" id="panel-anchorage">
+  <div class="two-col">
+    <div class="card form-inner">
+      <div class="notice info">Anchorage + lap lengths for H8–H32. EC2 Cl 8.4 + 8.7. Generates good and poor bond table.</div>
+      <div class="row2">
+        <div class="field"><label>fck</label><select id="an-fck"><option value="25">C25/30</option><option value="30" selected>C30/37</option><option value="32">C32/40</option><option value="35">C35/45</option><option value="40">C40/50</option></select></div>
+        <div class="field"><label>fyk</label><select id="an-fyk"><option value="500" selected>B500</option><option value="460">B460</option></select></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Cover c</label><div class="iu"><input type="number" id="an-cov" value="35" min="15"><span class="utag">mm</span></div></div>
+        <div class="field"><label>% lapped at same section</label>
+          <select id="an-pct"><option value="1.15">≤25% — α6=1.15</option><option value="1.4" selected>25–50% — α6=1.4</option><option value="1.5">>50% — α6=1.5</option></select></div>
+      </div>
+      <div class="field"><label>Bar end</label>
+        <select id="an-type"><option value="1.0">Straight — α1=1.0</option><option value="0.7">Hook/bend — α1=0.7</option></select></div>
+      <button class="btn" onclick="runAnchorage()">▶ GENERATE TABLE</button>
+    </div>
+    <div id="out-anchorage"><div class="card placeholder"><div class="placeholder-icon">▭</div><p>Anchorage + lap table H8–H32.<br>Good bond and poor bond (top bars).</p></div></div>
+  </div>
+</div>
+
+<!-- ═══ THERMAL ═══ -->
+<div class="panel" id="panel-thermal">
+  <div class="two-col">
+    <div class="card form-inner">
+      <div class="notice info">Early-age thermal cracking. CIRIA C766 + EC2 Cl 7.3. Minimum steel and crack width check.</div>
+      <div class="row2">
+        <div class="field"><label>fck</label><select id="th-fck"><option value="25">C25/30</option><option value="30">C30/37</option><option value="32" selected>C32/40</option><option value="35">C35/45</option></select></div>
+        <div class="field"><label>fyk</label><select id="th-fyk"><option value="500" selected>B500</option></select></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Section thickness</label><div class="iu"><input type="number" id="th-t" value="500" min="100" max="2000"><span class="utag">mm</span></div></div>
+        <div class="field"><label>Cement type</label>
+          <select id="th-cem"><option value="CEM I">CEM I (highest heat)</option><option value="CEM II" selected>CEM II/A (moderate)</option><option value="CEM III">CEM III (low heat)</option></select></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Cement content</label><div class="iu"><input type="number" id="th-kg" value="350" min="250" max="500"><span class="utag">kg/m³</span></div></div>
+        <div class="field"><label>Formwork</label>
+          <select id="th-fw"><option value="plywood" selected>Plywood</option><option value="steel">Steel</option><option value="insulated">Insulated</option></select></div>
+      </div>
+      <div class="field"><label>Restraint type</label>
+        <select id="th-rest">
+          <option value="edge" selected>Edge — wall/slab on old concrete</option>
+          <option value="ground">Ground slab — friction on blinding</option>
+          <option value="end">End — cast between two rigid elements</option>
+        </select></div>
+      <div class="row2">
+        <div class="field"><label>Pour length L</label><div class="iu"><input type="number" id="th-L" value="12" min="1" max="100" step="1"><span class="utag">m</span></div></div>
+        <div class="field"><label>Pour height / thickness H</label><div class="iu"><input type="number" id="th-H" value="0.5" min="0.1" max="5" step="0.1"><span class="utag">m</span></div></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Seasonal ΔT2</label><div class="iu"><input type="number" id="th-dT2" value="20" min="0" max="40"><span class="utag">°C</span></div></div>
+        <div class="field"><label>R factor (computed from L/H)</label><div class="iu"><input type="text" id="th-R-display" value="—" readonly style="color:var(--muted);background:#f0eeea"><span class="utag">auto</span></div></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Bar dia (for wk)</label><select id="th-dia"><option value="12">H12</option><option value="16" selected>H16</option><option value="20">H20</option><option value="25">H25</option></select></div>
+        <div class="field"><label>Cover</label><div class="iu"><input type="number" id="th-cov" value="50" min="35"><span class="utag">mm</span></div></div>
+      </div>
+      <div class="field"><label>Crack width limit wk</label>
+        <select id="th-wklim"><option value="0.2" selected>0.2mm (XC2/XD/XS, water-retaining)</option><option value="0.3">0.3mm (XC1/general)</option></select></div>
+      <button class="btn" onclick="runThermal()">▶ CALCULATE</button>
+    </div>
+    <div id="out-thermal"><div class="card placeholder"><div class="placeholder-icon">▭</div><p>CIRIA C766 thermal cracking.<br>ΔT1 · restrained strain · As,min · wk check.</p></div></div>
+  </div>
+</div>
+
+<!-- ═══ CALC LOG ═══ -->
+<div class="panel" id="panel-log">
+  <div class="full-col">
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-lbl">Calculation Log</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="clearLog()" style="padding:5px 11px;font-family:var(--mono);font-size:.7rem;border:1px solid var(--border);border-radius:3px;background:#faf9f7;cursor:pointer">CLEAR</button>
+          <button onclick="exportTxt()" style="padding:5px 11px;font-family:var(--mono);font-size:.7rem;border:1px solid var(--border);border-radius:3px;background:#faf9f7;cursor:pointer">EXPORT TXT</button>
+          <button onclick="exportJSON()" style="padding:5px 11px;font-family:var(--mono);font-size:.7rem;border:1px solid var(--slate);border-radius:3px;background:rgba(61,82,92,.08);cursor:pointer;color:var(--slate);font-weight:600">EXPORT JSON</button>
+          <button onclick="sendToTemplate()" class="btn-send" style="padding:5px 14px;font-family:var(--mono);font-size:.7rem;border:none;border-radius:3px;cursor:pointer;color:#fff;font-weight:600">⬆ SEND TO TEMPLATE</button>
+        </div>
+      </div>
+      <div class="notice info" style="margin:12px 16px 0">Every calculation is logged here as structured JSON — inputs, working, result, assumptions, and code clauses. This is the data that maps to your spreadsheet template. Run calculations, then press Send to Template.</div>
+      <div id="log-body" style="padding:12px 16px">
+        <div style="color:var(--muted);font-size:.78rem;padding:24px 0;text-align:center">No calculations run yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// EC2 MATERIAL MODEL
+// ═══════════════════════════════════════════════════════════════
+function ec2mat(fck,fyk){
+  fyk=fyk||500;
+  return{fck,fyk,fcd:0.85*fck/1.5,
+    fctm:fck<=50?0.30*Math.pow(fck,2/3):2.12*Math.log(1+(fck+8)/10),
+    fyd:fyk/1.15,Ecm:22*Math.pow((fck+8)/10,0.3)*1000};
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PURE CALC FUNCTIONS — standard result schema
+// ═══════════════════════════════════════════════════════════════
+
+function calcBeam(inp){
+  const{b,d,fck,fyk,MEd,VEd,linkDia,linkLegs,linkS,barDia,nBars,span,Ksup}=inp;
+  const m=ec2mat(fck,fyk);
+  const K=MEd*1e6/(b*d*d*fck),Kp=0.167,doubly=K>Kp;
+  const dPrime=0.15*d;
+  let z,As1,As2=0;
+  if(!doubly){
+    z=Math.min(d*(0.5+Math.sqrt(Math.max(0.25-K/1.134,0))),0.95*d);
+    As1=MEd*1e6/(m.fyd*z);
+  } else {
+    z=0.82*d;
+    const Mlim=Kp*b*d*d*fck;
+    As2=(MEd*1e6-Mlim)/(m.fyd*(d-dPrime));
+    As1=Mlim/(m.fyd*z)+As2;
+  }
+  const AsMin=Math.max(0.26*m.fctm/fyk*b*d,0.0013*b*d);
+  const AsMax=0.04*b*d;
+  const AsReq=Math.max(As1,AsMin);
+  const Abar=Math.PI*Math.pow(barDia/2,2);
+  const AsProv=nBars*Abar;
+  const x=doubly?0.45*d:AsProv*m.fyd/(0.8*m.fcd*b);
+  const rhoL=Math.min(AsProv/(b*d),0.02);
+  const k=Math.min(1+Math.sqrt(200/d),2.0);
+  const vmin=0.035*Math.pow(k,1.5)*Math.sqrt(fck);
+  const VRdc=Math.max(0.18/1.5*k*Math.pow(100*rhoL*fck,1/3),vmin)*b*d/1000;
+  const AswS=linkLegs*Math.PI*Math.pow(linkDia/2,2)/linkS;
+  const zV=0.9*d,theta=21.8*Math.PI/180,cotT=1/Math.tan(theta);
+  const VRds=AswS*zV*m.fyd*cotT/1000;
+  const VRdmax=b*zV*0.6*(1-fck/250)*m.fcd/(Math.tan(theta)+cotT)/1000;
+  const AswMin=0.08*Math.sqrt(fck)/fyk*b;
+  const sMaxLink=0.75*d;
+  const VRdShear=Math.max(VRdc,VRds);
+  // Deflection — span/depth, EC2 Cl 7.4.2 (same basis as slab tab)
+  const rho=AsReq/(b*d),rho0=Math.sqrt(fck)/1000;
+  const ldBase=rho<=rho0?Ksup*(11+1.5*Math.sqrt(fck)*rho0/rho+3.2*Math.sqrt(fck)*Math.pow(rho0/rho-1,1.5)):Ksup*(11+1.5*Math.sqrt(fck)*rho0/rho);
+  const ldLim=ldBase*Math.min(310/(fyk*AsReq/Math.max(AsProv,1)),1.5);
+  const ldActual=span*1000/d,deflOk=ldActual<=ldLim;
+  const checks=[
+    {name:"Bending K ≤ K'=0.167",demand:+K.toFixed(4),capacity:Kp,util:+(K/Kp).toFixed(3),pass:!doubly},
+    {name:"Flexure As,prov ≥ As,req",demand:+AsProv.toFixed(0),capacity:+AsReq.toFixed(0),util:+(AsReq/AsProv).toFixed(3),pass:AsProv>=AsReq},
+    {name:"Max reinf As,prov ≤ As,max=4%",demand:+AsProv.toFixed(0),capacity:+AsMax.toFixed(0),util:+(AsProv/AsMax).toFixed(3),pass:AsProv<=AsMax},
+    {name:"Shear VEd ≤ max(VRd,c,VRd,s)",demand:VEd,capacity:+VRdShear.toFixed(1),util:+(VEd/VRdShear).toFixed(3),pass:VEd<=VRdShear},
+    {name:"Strut VEd ≤ VRd,max",demand:VEd,capacity:+VRdmax.toFixed(1),util:+(VEd/VRdmax).toFixed(3),pass:VEd<=VRdmax},
+    {name:"Min links Asw/s ≥ Asw/s,min",demand:+AswS.toFixed(3),capacity:+AswMin.toFixed(3),util:+(AswMin/AswS).toFixed(3),pass:AswS>=AswMin},
+    {name:"Link spacing s ≤ 0.75d",demand:linkS,capacity:+sMaxLink.toFixed(0),util:+(linkS/sMaxLink).toFixed(3),pass:linkS<=sMaxLink},
+    {name:"Deflection l/d",demand:+ldActual.toFixed(1),capacity:+ldLim.toFixed(1),util:+(ldActual/ldLim).toFixed(3),pass:deflOk},
+  ];
+  const pass=checks.every(c=>c.pass);
+  const reading=[];
+  if(doubly)reading.push({t:'warn',s:`K=${K.toFixed(3)} > 0.167 — doubly reinforced section. As1=${As1.toFixed(0)}mm² tension steel and As2=${As2.toFixed(0)}mm² compression steel required (d'≈${dPrime.toFixed(0)}mm, assumed to yield). Provide As2 near the compression face — not covered by As,prov below.`});
+  else if(K<0.10)reading.push({t:'good',s:`K=${K.toFixed(3)} — lightly stressed. z=${z.toFixed(0)}mm (${(z/d*100).toFixed(0)}% of d).`});
+  else reading.push({t:'good',s:`K=${K.toFixed(3)} — moderately stressed, singly reinforced.`});
+  if(AsProv>=AsReq)reading.push({t:'good',s:`As,prov=${AsProv.toFixed(0)}mm² (${nBars}H${barDia}) ≥ As,req=${AsReq.toFixed(0)}mm².`});
+  else reading.push({t:'fail',s:`As,prov=${AsProv.toFixed(0)}mm² (${nBars}H${barDia}) < As,req=${AsReq.toFixed(0)}mm². Add bars or increase diameter.`});
+  if(AsProv>AsMax)reading.push({t:'fail',s:`As,prov=${AsProv.toFixed(0)}mm² > As,max=${AsMax.toFixed(0)}mm² (4% of b·d — EC2 Cl 9.2.1.1(3)). Reduce reinforcement or enlarge the section.`});
+  if(AsReq<=AsMin*1.02)reading.push({t:'warn',s:`Minimum steel governs (As,min=${AsMin.toFixed(0)}mm²). Beam may be over-sized for this moment.`});
+  if(VEd<=VRdc)reading.push({t:'good',s:`VEd ≤ VRd,c=${VRdc.toFixed(0)}kN — no shear reinforcement structurally required, but EC2 Cl 9.2.2 still requires minimum links (checked below).`});
+  else if(VEd<=VRds)reading.push({t:'good',s:`Links OK: VRd,s=${VRds.toFixed(0)}kN ≥ VEd=${VEd}kN using H${linkDia}@${linkS}mm (${linkLegs} legs).`});
+  else reading.push({t:'fail',s:`Links insufficient: max(VRd,c,VRd,s)=${VRdShear.toFixed(0)}kN < VEd=${VEd}kN. Reduce spacing or increase legs/diameter.`});
+  if(VEd>VRdmax)reading.push({t:'fail',s:`VEd > VRd,max=${VRdmax.toFixed(0)}kN — struts crush. Must increase b or d.`});
+  if(AswS>=AswMin)reading.push({t:'good',s:`Asw/s=${AswS.toFixed(3)}mm²/mm ≥ Asw/s,min=${AswMin.toFixed(3)}mm²/mm (EC2 Cl 9.2.2).`});
+  else reading.push({t:'fail',s:`Asw/s=${AswS.toFixed(3)}mm²/mm < Asw/s,min=${AswMin.toFixed(3)}mm²/mm — increase legs/diameter or reduce spacing (EC2 Cl 9.2.2).`});
+  if(linkS<=sMaxLink)reading.push({t:'good',s:`Link spacing s=${linkS}mm ≤ 0.75d=${sMaxLink.toFixed(0)}mm (EC2 Cl 9.2.2).`});
+  else reading.push({t:'fail',s:`Link spacing s=${linkS}mm > 0.75d=${sMaxLink.toFixed(0)}mm — reduce spacing (EC2 Cl 9.2.2).`});
+  if(deflOk)reading.push({t:'good',s:`Deflection OK: l/d=${ldActual.toFixed(1)} ≤ ${ldLim.toFixed(1)} (span=${span}m).`});
+  else reading.push({t:'fail',s:`Deflection fails: l/d=${ldActual.toFixed(1)} > ${ldLim.toFixed(1)} (span=${span}m). Increase d, add tension steel, or reduce span.`});
+  return{element:"RC Beam (rectangular)",
+    inputs:{b_mm:b,d_mm:d,fck_MPa:fck,fyk_MPa:fyk,span_m:span,MEd_kNm:MEd,VEd_kN:VEd,
+      tension_reinf:`${nBars}H${barDia}`,links:`H${linkDia}@${linkS}mm (${linkLegs} legs)`},
+    working:{K:+K.toFixed(4),K_prime:Kp,z_mm:+z.toFixed(1),x_mm:+x.toFixed(1),
+      fcd_MPa:+m.fcd.toFixed(2),fyd_MPa:+m.fyd.toFixed(1),fctm_MPa:+m.fctm.toFixed(2),
+      As1_req_mm2:+As1.toFixed(0),As2_req_mm2:+As2.toFixed(0),
+      VRdc_kN:+VRdc.toFixed(1),VRds_kN:+VRds.toFixed(1),VRdmax_kN:+VRdmax.toFixed(1),
+      rho_l_pct:+(rhoL*100).toFixed(3),Asw_s_prov:+AswS.toFixed(3),Asw_s_min:+AswMin.toFixed(3),
+      link_s_max_mm:+sMaxLink.toFixed(0),ld_limit:+ldLim.toFixed(1),ld_actual:+ldActual.toFixed(1)},
+    result:{As_req_mm2:+AsReq.toFixed(0),As_prov_mm2:+AsProv.toFixed(0),As2_req_mm2:doubly?+As2.toFixed(0):0,
+      As_min_mm2:+AsMin.toFixed(0),As_max_mm2:+AsMax.toFixed(0),status:pass?"PASS":"FAIL"},
+    checks,reading,
+    assumptions:["K'=0.167 (no redistribution)","θ=21.8° strut angle (cotθ=2.5)","z capped at 0.95d",
+      `As,min=${AsMin.toFixed(0)}mm², As,max=${AsMax.toFixed(0)}mm² (4% of b·d)`,
+      doubly?`Doubly reinforced: d'=0.15d=${dPrime.toFixed(0)}mm, compression steel assumed to yield`:"",
+      `Deflection: support factor K=${Ksup}, span=${span}m (EC2 Cl 7.4.2)`,
+      "ρl for VRd,c based on As,provided","Shear links assumed fywd=fyd of main bars",
+      "No axial force (σcp=0) in VRd,c/VRd,max","γC=1.5 γS=1.15"].filter(Boolean),
+    clauses:["EC2 Cl 6.1","EC2 Cl 6.2.3","EC2 Cl 9.2.1.1","EC2 Cl 9.2.2","EC2 Cl 7.4.2"]};
+}
+
+function calcColumn(inp){
+  const{shape,b,h,D,fck,fyk,cover,linkDia,barDia,nBars,NEd,MEd}=inp;
+  const m=ec2mat(fck,fyk);
+  const Es=200000,epscu=0.0035,dPrime=cover+linkDia+barDia/2;
+  const Abar=Math.PI*Math.pow(barDia/2,2);
+  let pts=[],AsTotal,dims,Ac,dEff;
+  if(shape==='rect'){
+    const AsFace=nBars*Abar;AsTotal=2*AsFace;dEff=h-dPrime;Ac=b*h;dims=`${b}×${h}mm`;
+    pts.push([(0.85*m.fcd*Ac+m.fyd*AsTotal)/1e3,0]);
+    [2,1.5,1.2,1,.9,.8,.7,.6,.5,.45,.4,.35,.3,.25,.2,.15,.1,.05].forEach(xf=>{
+      const x=xf*h,a=Math.min(0.8*x,h),Fc=m.fcd*b*a;
+      const esc=x>0?Math.max(Math.min(epscu*(x-dPrime)/x*Es,m.fyd),-m.fyd):-m.fyd;
+      const est=x>0?Math.max(Math.min(epscu*(dEff-x)/x*Es,m.fyd),-m.fyd):m.fyd;
+      pts.push([(Fc+esc*AsFace-est*AsFace)/1e3,
+        (Fc*(h/2-a/2)+Math.abs(esc*AsFace)*Math.abs(h/2-dPrime)+Math.abs(est*AsFace)*Math.abs(dEff-h/2))/1e6]);
+    });
+    pts.push([-m.fyd*AsTotal/1e3,0]);
+  } else {
+    const AsFace=nBars*Abar/2;AsTotal=nBars*Abar;dEff=D-dPrime;Ac=Math.PI*Math.pow(D/2,2);dims=`D${D}mm`;
+    pts.push([(0.85*m.fcd*Ac+m.fyd*AsTotal)/1e3,0]);
+    [1.2,1,.8,.7,.6,.5,.45,.4,.35,.3,.25,.2,.15,.1,.05].forEach(xf=>{
+      const x=xf*D,a=Math.min(0.8*x,D),ym=D/2-a/2;
+      const ch=ym>=-D/2?2*Math.sqrt(Math.max(0,Math.pow(D/2,2)-ym*ym)):D;
+      const Fc=m.fcd*0.8*a*(ch+D)/2*0.7;
+      const esc=x>0?Math.max(Math.min(epscu*(x-dPrime)/x*Es,m.fyd),-m.fyd):-m.fyd;
+      const est=x>0?Math.max(Math.min(epscu*(dEff-x)/x*Es,m.fyd),-m.fyd):m.fyd;
+      pts.push([(Fc+esc*AsFace-est*AsFace)/1e3,
+        (Fc*(D/2-a/2)+Math.abs(esc*AsFace)*(D/2-dPrime)+Math.abs(est*AsFace)*(dEff-D/2))/1e6]);
+    });
+    pts.push([-m.fyd*AsTotal/1e3,0]);
+  }
+  pts=pts.map(p=>[p[0],Math.abs(p[1])]);
+  let inside=false;
+  for(let i=0;i<pts.length-1;i++){
+    const[N1,M1]=pts[i],[N2,M2]=pts[i+1];
+    if((N1>=NEd&&N2<=NEd)||(N1<=NEd&&N2>=NEd)){
+      if(MEd<=(M1+(NEd-N1)/(N2-N1+1e-9)*(M2-M1))){inside=true;break;}
+    }
+  }
+  const rho=AsTotal/Ac,ecc=NEd>0?MEd*1000/NEd:9999,totalBars=shape==='rect'?nBars*2:nBars;
+  const reading=[];
+  if(inside)reading.push({t:'good',s:`Design point (${NEd}kN, ${MEd}kNm) inside capacity envelope.`});
+  else reading.push({t:'fail',s:`Design point outside envelope. Increase steel, section size, or fck.`});
+  if(rho<0.002)reading.push({t:'warn',s:`ρ=${(rho*100).toFixed(2)}% < 0.2% minimum (EC2 Cl 9.5.2).`});
+  else if(rho>0.04)reading.push({t:'warn',s:`ρ=${(rho*100).toFixed(1)}% > 4% — congestion risk at laps.`});
+  else reading.push({t:'good',s:`ρ=${(rho*100).toFixed(2)}% — within practical 0.2–4% range.`});
+  reading.push({t:ecc<50?'good':'warn',s:`e=M/N=${ecc.toFixed(0)}mm. ${ecc<50?'Axial-dominated — verify slenderness Cl 5.8.3.':'High eccentricity — check second-order effects.'}`});
+  return{element:`RC Column (${shape==='rect'?'rectangular':'circular'})`,
+    inputs:{shape,dims,fck_MPa:fck,fyk_MPa:fyk,cover_mm:cover,reinf:`${totalBars}H${barDia}`,link:`H${linkDia}`,NEd_kN:NEd,MEd_kNm:MEd},
+    working:{As_total_mm2:+AsTotal.toFixed(0),rho_pct:+(rho*100).toFixed(2),d_prime_mm:+dPrime.toFixed(0),
+      d_eff_mm:+dEff.toFixed(0),Ac_mm2:+Ac.toFixed(0),ecc_mm:+ecc.toFixed(0),fcd_MPa:+m.fcd.toFixed(2),fyd_MPa:+m.fyd.toFixed(1)},
+    result:{As_total_mm2:+AsTotal.toFixed(0),rho_pct:+(rho*100).toFixed(2),status:inside?"PASS — inside envelope":"FAIL — outside envelope"},
+    checks:[
+      {name:"N–M capacity",demand:`${NEd}kN/${MEd}kNm`,capacity:"envelope",util:inside?"<1.0":">1.0",pass:inside},
+      {name:"Min reinf ρ≥0.2%",demand:+(rho*100).toFixed(2),capacity:0.2,util:+(0.2/(rho*100)).toFixed(3),pass:rho>=0.002},
+      {name:"Max reinf ρ≤4%",demand:+(rho*100).toFixed(2),capacity:4.0,util:+((rho*100)/4).toFixed(3),pass:rho<=0.04},
+    ],
+    reading,
+    assumptions:["Strain compatibility","Rectangular stress block η=1 λ=0.8","εcu=0.0035","Symmetric reinf",
+      shape==='circ'?"Circular: simplified chord-width (conservative)":"",
+      "Slenderness NOT checked — verify Cl 5.8 separately","γC=1.5 γS=1.15"].filter(Boolean),
+    clauses:["EC2 Cl 6.1","EC2 Cl 9.5.2"],
+    viz:{type:'interaction',pts,NEd,MEd,inside}};
+}
+
+function calcSlab(inp){
+  const{h,cover,barDia,fck,fyk,Ksup,MEd,VEd,span}=inp;
+  const m=ec2mat(fck,fyk);
+  const b=1000,d=h-cover-barDia/2;
+  const K=MEd*1e6/(b*d*d*fck),doubly=K>0.167;
+  const z=doubly?null:Math.min(d*(0.5+Math.sqrt(Math.max(0.25-K/1.134,0))),0.95*d);
+  const AsMin=Math.max(0.26*m.fctm/fyk*b*d,0.0013*b*d);
+  const AsReq=z?Math.max(MEd*1e6/(m.fyd*z),AsMin):null;
+  const Abar=Math.PI*Math.pow(barDia/2,2);
+  const spacing=AsReq?Math.min(Math.floor(Abar/AsReq*1000/5)*5,Math.min(3*h,400)):300;
+  const AsProv=Abar*Math.floor(1000/spacing);
+  const rhoL=Math.min(AsProv/(b*d),0.02);
+  const k=Math.min(1+Math.sqrt(200/d),2.0);
+  const VRdc=Math.max(0.18/1.5*k*Math.pow(100*rhoL*fck,1/3),0.035*Math.pow(k,1.5)*Math.sqrt(fck))*b*d/1000;
+  const rho=AsReq?AsReq/(b*d):AsMin/(b*d);
+  const rho0=Math.sqrt(fck)/1000;
+  const ldBase=rho<=rho0?Ksup*(11+1.5*Math.sqrt(fck)*rho0/rho+3.2*Math.sqrt(fck)*Math.pow(rho0/rho-1,1.5)):Ksup*(11+1.5*Math.sqrt(fck)*rho0/rho);
+  const ldLim=ldBase*Math.min(310/(fyk*(AsReq||AsMin)/Math.max(AsProv,1)),1.5);
+  const ldActual=span*1000/d,deflOk=ldActual<=ldLim,sMax=Math.min(3*h,400);
+  const checks=[
+    {name:"Bending K ≤ K'=0.167",demand:+K.toFixed(4),capacity:0.167,util:+(K/0.167).toFixed(3),pass:!doubly},
+    {name:"Shear VEd ≤ VRd,c",demand:VEd,capacity:+VRdc.toFixed(1),util:+(VEd/VRdc).toFixed(3),pass:VEd<=VRdc},
+    {name:"Deflection l/d",demand:+ldActual.toFixed(1),capacity:+ldLim.toFixed(1),util:+(ldActual/ldLim).toFixed(3),pass:deflOk},
+    {name:"Bar spacing ≤ max",demand:spacing,capacity:sMax,util:+(spacing/sMax).toFixed(2),pass:spacing<=sMax},
+  ];
+  const reading=[];
+  if(doubly)reading.push({t:'fail',s:`K=${K.toFixed(3)} > 0.167 — slab too thin. Increase depth.`});
+  else if(K<0.05)reading.push({t:'good',s:`K=${K.toFixed(3)} — depth likely governed by deflection, not strength.`});
+  else reading.push({t:'good',s:`K=${K.toFixed(3)} — comfortably singly reinforced.`});
+  if(VEd<=VRdc)reading.push({t:'good',s:`Shear OK without links (VRd,c=${VRdc.toFixed(1)}kN/m). Avoid slab links if possible.`});
+  else reading.push({t:'fail',s:`VEd > VRd,c=${VRdc.toFixed(1)}kN/m. Increase depth — links in slabs are costly.`});
+  if(deflOk)reading.push({t:'good',s:`Deflection OK: l/d=${ldActual.toFixed(1)} ≤ ${ldLim.toFixed(1)}.`});
+  else reading.push({t:'fail',s:`Deflection fails: l/d=${ldActual.toFixed(1)} > ${ldLim.toFixed(1)}. Need d ≥ ${Math.ceil(span*1000/ldLim)}mm.`});
+  if(AsReq&&AsReq<=AsMin*1.02)reading.push({t:'warn',s:`Min steel governs (${AsMin.toFixed(0)}mm²/m).`});
+  return{element:"RC Slab (one-way)",
+    inputs:{h_mm:h,cover_mm:cover,bar:`H${barDia}`,fck_MPa:fck,fyk_MPa:fyk,MEd_kNm_m:MEd,VEd_kN_m:VEd,span_m:span,K_support:Ksup},
+    working:{d_mm:+d.toFixed(0),K:+K.toFixed(4),z_mm:z?+z.toFixed(1):null,VRdc_kN_m:+VRdc.toFixed(1),
+      ld_limit:+ldLim.toFixed(1),ld_actual:+ldActual.toFixed(1),rho_pct:+(rhoL*100).toFixed(3)},
+    result:{As_req_mm2_m:AsReq?+AsReq.toFixed(0):null,As_min_mm2_m:+AsMin.toFixed(0),
+      provide:`H${barDia}@${spacing}mm`,As_prov_mm2_m:+AsProv.toFixed(0),status:checks.every(c=>c.pass)?"PASS":"FAIL"},
+    checks,reading,
+    assumptions:[`Support K=${Ksup}`,`b=1000mm/m`,`Deflection by l/d ratio (Cl 7.4.2)`,`As,min=${AsMin.toFixed(0)}mm²/m`,`Max spacing=${sMax}mm`,"γC=1.5 γS=1.15"],
+    clauses:["EC2 Cl 6.1","EC2 Cl 6.2.2","EC2 Cl 7.4.2","EC2 Cl 9.3"]};
+}
+
+function calcShearWall(inp){
+  const{lw,t,fck,fyk,NEd,VEd,MEd}=inp;
+  const m=ec2mat(fck,fyk);
+  const dw=0.8*lw*1000;
+  const rhoMin=0.001*t*dw/(t*dw);
+  const k=Math.min(1+Math.sqrt(200/dw),2.0);
+  const VRdc=Math.max(0.18/1.5*k*Math.pow(100*Math.min(rhoMin,0.02)*fck,1/3),0.035*Math.pow(k,1.5)*Math.sqrt(fck))*t*dw/1000;
+  const AsVmin=Math.max(0.002*t*lw*1000,0.001*t*lw*1000);
+  const AsHmin_face=0.001*t*1000;
+  const ecc=NEd>0?MEd*1e3/NEd:9999;
+  const emin=Math.max(lw*1000/30,20);
+  const linksNeeded=VEd>VRdc;
+  const tau=VEd*1e3/(t*dw);
+  const tauRd=0.25*m.fcd;
+  const checks=[
+    {name:"Shear VEd ≤ VRd,c",demand:VEd,capacity:+VRdc.toFixed(0),util:+(VEd/VRdc).toFixed(3),pass:!linksNeeded},
+    {name:"Shear stress τ ≤ 0.25fcd",demand:+tau.toFixed(3),capacity:+tauRd.toFixed(2),util:+(tau/tauRd).toFixed(3),pass:tau<=tauRd},
+    {name:"Min vert steel As,v,min",demand:0,capacity:+AsVmin.toFixed(0),util:0,pass:true},
+  ];
+  const reading=[];
+  if(!linksNeeded)reading.push({t:'good',s:`VEd ≤ VRd,c=${VRdc.toFixed(0)}kN (min vertical steel assumed). No horizontal shear links required structurally.`});
+  else reading.push({t:'warn',s:`VEd > VRd,c=${VRdc.toFixed(0)}kN. Horizontal shear reinforcement required. Treat wall as a deep beam.`});
+  reading.push({t:'warn',s:`Min vertical steel = ${AsVmin.toFixed(0)}mm² total (0.2% Ac). Provide in two curtains, max 300mm c/c. EC2 Cl 9.6.2.`});
+  reading.push({t:'warn',s:`Min horizontal steel = ${AsHmin_face.toFixed(0)}mm²/m per face (0.1%t). EC2 Cl 9.6.3. ≥ 25% of vertical steel.`});
+  if(ecc>lw*1000*0.1)reading.push({t:'warn',s:`e=M/N=${ecc.toFixed(0)}mm (${(ecc/(lw*1000)*100).toFixed(0)}% of lw). High eccentricity — boundary elements at wall ends should be considered.`});
+  else reading.push({t:'good',s:`e=M/N=${ecc.toFixed(0)}mm — axial compression helps stability. Verify slenderness separately.`});
+  return{element:"RC Shear Wall",
+    inputs:{lw_m:lw,t_mm:t,fck_MPa:fck,fyk_MPa:fyk,NEd_kN:NEd,VEd_kN:VEd,MEd_kNm:MEd},
+    working:{dw_mm:+dw.toFixed(0),VRdc_kN:+VRdc.toFixed(0),tau_Nmm2:+tau.toFixed(3),tauRd_Nmm2:+tauRd.toFixed(2),
+      ecc_mm:+ecc.toFixed(0),fcd_MPa:+m.fcd.toFixed(2)},
+    result:{As_v_min_mm2:+AsVmin.toFixed(0),As_h_min_mm2_m_face:+AsHmin_face.toFixed(0),
+      status:(!linksNeeded&&tau<=tauRd)?"PASS (provide min steel)":"LINKS REQUIRED"},
+    checks,reading,
+    assumptions:["dw=0.8lw (effective depth for slender wall)","Min vertical steel assumed for VRdc","Slenderness not checked","Stability not checked","γC=1.5 γS=1.15"],
+    clauses:["EC2 Cl 6.2.2","EC2 Cl 9.6.2","EC2 Cl 9.6.3"]};
+}
+
+function calcRetaining(inp){
+  const{H,t,cover,fck,fyk,gs,Ka,qSur}=inp;
+  const m=ec2mat(fck,fyk);
+  const paSLS=Ka*gs*H,pqSLS=Ka*qSur;
+  const HaSoilSLS=0.5*paSLS*H,HaSurSLS=pqSLS*H;
+  const HaSoilULS=1.35*HaSoilSLS,HaSurULS=1.5*HaSurSLS;
+  const MEdBase=HaSoilULS*H/3+HaSurULS*H/2;
+  const VEdStem=HaSoilULS+HaSurULS;
+  const d=t-cover-8-8;
+  const K=MEdBase*1e6/(1000*d*d*fck),z=Math.min(d*(0.5+Math.sqrt(Math.max(0.25-K/1.134,0))),0.95*d);
+  const AsMin=Math.max(0.26*m.fctm/fyk*1000*d,0.0013*1000*d);
+  const AsReq=Math.max(MEdBase*1e6/(m.fyd*z),AsMin);
+  const rhoL=Math.min(AsReq/(1000*d),0.02);
+  const kv=Math.min(1+Math.sqrt(200/d),2.0);
+  const VRdc=Math.max(0.18/1.5*kv*Math.pow(100*rhoL*fck,1/3),0.035*Math.pow(kv,1.5)*Math.sqrt(fck))*1000*d/1000;
+  const checks=[
+    {name:"Stem bending K ≤ 0.167",demand:+K.toFixed(4),capacity:0.167,util:+(K/0.167).toFixed(3),pass:K<=0.167},
+    {name:"Stem shear VEd ≤ VRd,c",demand:+VEdStem.toFixed(1),capacity:+VRdc.toFixed(1),util:+(VEdStem/VRdc).toFixed(3),pass:VEdStem<=VRdc},
+  ];
+  const reading=[];
+  reading.push({t:'warn',s:`Preliminary check only — overturning, sliding, and base bearing must be checked separately. This covers stem bending and shear only.`});
+  reading.push({t:K<=0.167?'good':'fail',s:`Stem K=${K.toFixed(4)}, MEd=${MEdBase.toFixed(1)}kNm/m, As,req=${AsReq.toFixed(0)}mm²/m.`});
+  if(VEdStem<=VRdc)reading.push({t:'good',s:`Stem shear OK without links (VRd,c=${VRdc.toFixed(1)}kN/m).`});
+  else reading.push({t:'warn',s:`Stem shear links needed near base.`});
+  reading.push({t:'warn',s:`Active thrust (SLS) = ${(HaSoilSLS+HaSurSLS).toFixed(1)}kN/m. Verify stability with base slab dimensions.`});
+  return{element:"RC Retaining Wall (stem)",
+    inputs:{H_m:H,t_stem_mm:t,cover_mm:cover,fck_MPa:fck,fyk_MPa:fyk,gamma_soil:gs,Ka,q_sur_kNm2:qSur},
+    working:{pa_base_kNm2:+paSLS.toFixed(1),Ha_SLS_kNm:+(HaSoilSLS+HaSurSLS).toFixed(1),Ha_ULS_kNm:+(HaSoilULS+HaSurULS).toFixed(1),
+      MEd_base_kNm_m:+MEdBase.toFixed(1),VEd_kNm:+VEdStem.toFixed(1),d_mm:d,K:+K.toFixed(4),z_mm:+z.toFixed(0),
+      As_req_mm2_m:+AsReq.toFixed(0),VRdc_kNm:+VRdc.toFixed(1)},
+    result:{As_req_stem_mm2_m:+AsReq.toFixed(0),As_min_mm2_m:+AsMin.toFixed(0),status:checks.every(c=>c.pass)?"PASS (stem only)":"FAIL (stem)"},
+    checks,reading,
+    assumptions:["Active earth pressure Ka="+Ka,"ULS: 1.35×Gk+1.5×Qk","Stem designed as cantilever","Overturning/sliding NOT checked","γC=1.5 γS=1.15"],
+    clauses:["EC2 Cl 6.1","EC2 Cl 6.2.2","EC7 Cl 9 (stability not included)"]};
+}
+
+function calcCrack(inp){
+  const{b,h,d,cover,dia,As,MEd,fck,fyk,bond,wk_lim}=inp;
+  const m=ec2mat(fck,fyk);
+  const Es=200000,ae=Es/m.Ecm;
+  const sigma_s=MEd*1e6/(As*0.9*d);
+  const hcef=Math.min(2.5*(h-d),(h-(h-d))/3,h/2);
+  const rhoEff=As/(b*hcef);
+  const eps=Math.max((sigma_s-0.4*m.fctm/rhoEff*(1+ae*rhoEff))/Es,0.6*sigma_s/Es);
+  const k1=bond==='good'?0.8:1.6;
+  const sr_max=Math.min(3.4*cover+k1*0.5*0.425*dia/rhoEff,5*(cover+dia/2));
+  const wk=sr_max*eps;
+  const ratio=wk/wk_lim;
+  const checks=[{name:`wk ≤ ${wk_lim}mm`,demand:+wk.toFixed(3),capacity:wk_lim,util:+ratio.toFixed(3),pass:wk<=wk_lim}];
+  const reading=[];
+  if(wk<=wk_lim)reading.push({t:'good',s:`wk=${wk.toFixed(3)}mm ≤ ${wk_lim}mm. Crack width within limit.`});
+  else reading.push({t:'fail',s:`wk=${wk.toFixed(3)}mm > ${wk_lim}mm. Reduce bar spacing — use same As with smaller diameter bars at closer centres.`});
+  reading.push({t:sigma_s<280?'good':'warn',s:`σs=${sigma_s.toFixed(1)}N/mm². ${sigma_s>320?'High — increasing As or reducing Ø will both help.':sigma_s>240?'Moderate.':'Low.'}`});
+  reading.push({t:'warn',s:`sr,max=${sr_max.toFixed(0)}mm. The most efficient fix for high wk is smaller bars (same area) — Ø directly reduces sr,max.`});
+  if(bond==='poor')reading.push({t:'warn',s:`Poor bond (k1=1.6 vs 0.8 good) — top bars or h>300mm. Crack spacing ~2× larger. Significant penalty.`});
+  return{element:"Crack Width (EC2)",
+    inputs:{b_mm:b,h_mm:h,d_mm:d,cover_mm:cover,bar_dia:dia,As_prov_mm2:As,MEd_SLS_kNm:MEd,fck_MPa:fck,bond,wk_limit_mm:wk_lim},
+    working:{sigma_s_MPa:+sigma_s.toFixed(1),hcef_mm:+hcef.toFixed(0),rho_eff_pct:+(rhoEff*100).toFixed(3),
+      eps_sm_cm:+eps.toFixed(6),sr_max_mm:+sr_max.toFixed(0),wk_mm:+wk.toFixed(3),fctm_MPa:+m.fctm.toFixed(2),Ecm_MPa:+m.Ecm.toFixed(0)},
+    result:{wk_mm:+wk.toFixed(3),wk_limit_mm:wk_lim,status:wk<=wk_lim?"PASS":"FAIL"},
+    checks,reading,
+    assumptions:["z=0.9d for SLS steel stress (simplified)","kt=0.4 long-term","σs from cracked section","γC=1.5 γS=1.15"],
+    clauses:["EC2 Cl 7.3.4"]};
+}
+
+function calcAnchorage(inp){
+  const{fck,fyk,cover,alpha6,alpha1}=inp;
+  const fctd=0.7*0.30*Math.pow(fck,2/3)/1.5,fyd=fyk/1.15;
+  const BARS=[8,10,12,16,20,25,32,40];
+  const row=(dia,bond)=>{
+    const eta1=bond==='good'?1.0:0.7,eta2=dia<=32?1.0:(132-dia)/100;
+    const fbd=2.25*eta1*eta2*fctd,lb=dia/4*fyd/fbd;
+    const a2=Math.max(Math.min(1-0.15*(cover/dia-1),1.0),0.7);
+    const lbd=Math.max(alpha1*a2*lb,0.3*lb,10*dia,100);
+    const l0=Math.max(alpha6*lbd,0.3*alpha6*lb,15*dia,200);
+    return{dia,fbd:+fbd.toFixed(2),lb_rqd:+lb.toFixed(0),lbd:+lbd.toFixed(0),lbd_phi:+(lbd/dia).toFixed(0),l0:+l0.toFixed(0),l0_phi:+(l0/dia).toFixed(0)};
+  };
+  const goodRows=BARS.map(d=>row(d,'good'));
+  const poorRows=BARS.map(d=>row(d,'poor'));
+  return{element:"Anchorage & Laps (EC2)",
+    inputs:{fck_MPa:fck,fyk_MPa:fyk,cover_mm:cover,alpha1,alpha6},
+    working:{fctd_MPa:+fctd.toFixed(3),fyd_MPa:+fyd.toFixed(1)},
+    result:{note:"See table",status:"TABLE GENERATED"},
+    checks:[],reading:[],
+    assumptions:[`fctd=${fctd.toFixed(3)}N/mm²`,`α1=${alpha1}`,`α6=${alpha6}`,`Cover=${cover}mm`,"Min anchorage: max(0.3lb,rqd, 10Ø, 100mm)","Min lap: max(0.3α6lb,rqd, 15Ø, 200mm)"],
+    clauses:["EC2 Cl 8.4","EC2 Cl 8.7"],
+    viz:{type:'anchorage',goodRows,poorRows}};
+}
+
+function ciria_dT1(cementType,cementKg,h_mm,formwork){
+  const th=[100,200,300,500,700,1000],dT=[14,24,33,42,46,50];
+  const h=Math.max(100,Math.min(h_mm,1000));
+  let dTb=dT[dT.length-1];
+  for(let i=0;i<th.length-1;i++){if(th[i]<=h&&h<=th[i+1]){dTb=dT[i]+(h-th[i])/(th[i+1]-th[i])*(dT[i+1]-dT[i]);break;}}
+  dTb*=cementKg/350;
+  dTb*={'CEM I':1.0,'CEM II':0.85,'CEM III':0.70}[cementType]||0.85;
+  dTb*={'plywood':1.0,'steel':0.85,'insulated':1.15}[formwork]||1.0;
+  return dTb;
+}
+
+function ciria_R(restraintType,L,H){
+  const LH=H>0?L/H:99;
+  if(restraintType==='edge'){
+    const lhP=[0,1,2,3,5,8,99],rP=[0.10,0.30,0.42,0.48,0.55,0.60,0.62];
+    for(let i=0;i<lhP.length-1;i++){
+      if(LH>=lhP[i]&&LH<=lhP[i+1])return rP[i]+(LH-lhP[i])/(lhP[i+1]-lhP[i])*(rP[i+1]-rP[i]);
+    }
+    return 0.62;
+  } else if(restraintType==='ground'){
+    if(L<=6)return 0.20;if(L<=12)return 0.20+(L-6)/6*0.20;
+    if(L<=20)return 0.40+(L-12)/8*0.20;if(L<=40)return 0.60+(L-20)/20*0.10;
+    return 0.70;
+  } else {
+    if(LH<1)return 0.35;if(LH<2)return 0.50;if(LH<5)return 0.65;return 0.80;
+  }
+}
+
+function calcThermal(inp){
+  const{fck,fyk,t,cementType,cementKg,formwork,restraint,L_pour,H_pour,dT2,dia,cover,wk_lim}=inp;
+  const m=ec2mat(fck,fyk);
+  const dT1=ciria_dT1(cementType,cementKg,t,formwork);
+  const R=ciria_R(restraint,L_pour,H_pour);
+  const alphaT=12e-6;
+  const eps_r1=R*alphaT*dT1,eps_r2=R*alphaT*dT2,eps_ca=2.5*(fck-10)*1e-6;
+  const eps_total=eps_r1+eps_r2+eps_ca;
+  const k_depth=t>300?Math.max(0.65,1-(t-300)/1400):1.0;
+  const Act=1000*t/2,sigma_s_lim=wk_lim<=0.2?280:320;
+  const AsMin=k_depth*m.fctm*Act/sigma_s_lim;
+  const rho_crit=m.fctm/(2*fyk);
+  const AsProv=Math.max(AsMin,Math.PI*Math.pow(dia/2,2)*1000/200);
+  const spacing_prov=Math.max(Math.round(Math.PI*Math.pow(dia/2,2)*1000/AsProv/5)*5,75);
+  const rhoEff=AsProv/(1000*(t/2));
+  const sr_max=Math.min(3.4*cover+0.8*0.5*0.425*dia/rhoEff,1.3*(t-cover));
+  const wk=sr_max*eps_total,rhoActual=AsProv/(1000*t);
+  const rhoCritOk=rhoActual>=rho_crit,wkOk=wk<=wk_lim;
+  const LH=(H_pour>0?L_pour/H_pour:0).toFixed(1);
+  const checks=[
+    {name:`wk \u2264 ${wk_lim}mm`,demand:+wk.toFixed(3),capacity:wk_lim,util:+(wk/wk_lim).toFixed(3),pass:wkOk},
+    {name:"rho \u2265 rhocrit (no brittle fracture)",demand:+(rhoActual*100).toFixed(3),capacity:+(rho_crit*100).toFixed(3),util:+(rho_crit/rhoActual).toFixed(3),pass:rhoCritOk},
+  ];
+  const reading=[];
+  reading.push({t:'warn',s:`\u0394T1=${dT1.toFixed(1)}\u00b0C (CIRIA C766 Table 3.1, ${cementType}, ${cementKg}kg/m\u00b3, ${t}mm section, ${formwork} formwork).`});
+  reading.push({t:'warn',s:`R=${R.toFixed(2)} from ${restraint} restraint, L=${L_pour}m, H=${H_pour}m (L/H=${LH}). Longer pours give higher R and more cracking demand.`});
+  reading.push({t:wkOk?'good':'fail',s:`wk=${wk.toFixed(3)}mm vs ${wk_lim}mm. ${wkOk?'':'Reduce bar spacing or increase steel area.'}`});
+  reading.push({t:rhoCritOk?'good':'fail',s:`\u03c1crit=${(rho_crit*100).toFixed(3)}%, \u03c1actual=${(rhoActual*100).toFixed(3)}%. ${rhoCritOk?'Sufficient to prevent brittle fracture on first crack.':'Brittle fracture risk \u2014 increase steel.'}`});
+  if(restraint==='end')reading.push({t:'warn',s:`End restraint: R rises with L/H to 0.80. Shorter pours reduce R significantly.`});
+  if(restraint==='ground')reading.push({t:'warn',s:`Ground slab: pours \u22646m keep R\u22640.20. Consider short-strip or alternate bay construction.`});
+  return{element:"Thermal Cracking (CIRIA C766)",
+    inputs:{fck_MPa:fck,fyk_MPa:fyk,thickness_mm:t,cement:cementType,cement_kg_m3:cementKg,
+      formwork,restraint:`${restraint} R=${R.toFixed(2)}`,L_pour_m:L_pour,H_pour_m:H_pour,L_H_ratio:+LH,
+      dT2_degC:dT2,bar:`H${dia}@${spacing_prov}mm`,cover_mm:cover,wk_limit_mm:wk_lim},
+    working:{dT1_degC:+dT1.toFixed(1),R:+R.toFixed(2),eps_r1:+eps_r1.toFixed(6),eps_r2:+eps_r2.toFixed(6),
+      eps_ca:+eps_ca.toFixed(6),eps_total:+eps_total.toFixed(6),
+      As_min_mm2_m:+AsMin.toFixed(0),As_prov_mm2_m:+AsProv.toFixed(0),
+      sr_max_mm:+sr_max.toFixed(0),wk_mm:+wk.toFixed(3),
+      rho_crit_pct:+(rho_crit*100).toFixed(3),rho_actual_pct:+(rhoActual*100).toFixed(3)},
+    result:{As_min_mm2_m:+AsMin.toFixed(0),provide:`H${dia}@${spacing_prov}mm`,
+      wk_mm:+wk.toFixed(3),R_factor:+R.toFixed(2),status:(wkOk&&rhoCritOk)?"PASS":"FAIL"},
+    checks,reading,
+    assumptions:[`CIRIA C766 Table 3.1 \u0394T1 (interpolated)`,
+      `R=${R.toFixed(2)} (${restraint}, L/H=${LH}, CIRIA C766 Fig 3.4)`,
+      `\u03b1T=12\u00d710\u207b\u2076/\u00b0C (NWC)`,`\u03b5ca=${eps_ca.toFixed(6)}`,
+      `k(depth)=${k_depth.toFixed(2)}`,`\u03c3s,lim=${sigma_s_lim}N/mm\u00b2`,`kc=1.0 (tension)`,`\u03b3C=1.5 \u03b3S=1.15`],
+    clauses:["EC2 Cl 7.3.2","EC2 Cl 7.3.4","CIRIA C766 Sections 3+7"]};
+}
+
+// RENDERER — consumes result schema, produces HTML
+// ═══════════════════════════════════════════════════════════════
+function ubar(r){
+  if(r==null||isNaN(r))return'';
+  const c=r<=.8?'#2e9e5b':r<=1?'#e09020':'#d14836';
+  return`<div class="ubar-wrap"><div class="ubar-fill" style="width:${Math.min(100,r*100).toFixed(1)}%;background:${c}"></div></div>`;
+}
+function vt(status){
+  const p=/PASS|OK|TABLE|INSIDE/i.test(status)&&!/FAIL/i.test(status);
+  return`<span class="verdict ${p?'vpass':'vfail'}">${p?'✓':'✗'} ${status}</span>`;
+}
+function dc(lbl,val,unit){
+  if(val==null)val='—';
+  return`<div class="dc"><div class="dc-lbl">${lbl}</div><div class="dc-val">${val}${unit?`<span class="dc-unit"> ${unit}</span>`:''}</div></div>`;
+}
+function renderReading(reading){
+  if(!reading||!reading.length)return'';
+  const ic={good:'✓',warn:'⚠',fail:'✗'};
+  return`<div class="card"><div class="card-hdr"><span class="card-lbl">Engineer's Reading</span></div>
+    <div class="reading">${reading.map(l=>`<div class="read-line rl-${l.t}"><span class="read-icon">${ic[l.t]}</span><span>${l.s}</span></div>`).join('')}</div></div>`;
+}
+function renderChecks(checks){
+  if(!checks||!checks.length)return'';
+  return`<div class="card"><div class="card-hdr"><span class="card-lbl">Design Checks</span></div>
+    <ul class="steps">${checks.map(c=>`<li class="step">
+      <span class="sk" style="color:${c.pass?'#1d7a44':'#a83523'}">${c.pass?'✓':'✗'}</span>
+      <span class="sd">${c.name} — ${c.demand} vs ${c.capacity}</span>
+      <span class="sv">util ${c.util}</span></li>`).join('')}</ul></div>`;
+}
+function renderWorking(working){
+  const entries=Object.entries(working).filter(([,v])=>v!=null);
+  if(!entries.length)return'';
+  return`<div class="card"><div class="card-hdr"><span class="card-lbl">Working</span></div>
+    <div class="dg dg-3">${entries.map(([k,v])=>dc(k.replace(/_/g,' ').replace(/MPa|mm2|mm|kN|pct/g,'').trim(),
+      typeof v==='number'?v:v,k.match(/MPa$/)?'N/mm²':k.match(/mm2/)?'mm²':k.match(/kN/)?'kN':k.match(/pct/)?'%':k.match(/_mm$/)?'mm':'')).join('')}</div></div>`;
+}
+function renderAssumptions(assumptions,clauses){
+  return`<div class="card"><div class="card-hdr"><span class="card-lbl">Assumptions & Code References</span></div>
+    <div style="padding:11px 16px">
+      ${assumptions.map(a=>`<div style="font-size:.71rem;color:var(--text);padding:2px 0;display:flex;gap:7px"><span style="color:var(--rust-dim);font-family:var(--mono)">→</span>${a}</div>`).join('')}
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px">
+        ${clauses.map(c=>`<span style="font-family:var(--mono);font-size:.63rem;padding:2px 8px;background:rgba(61,82,92,.08);border:1px solid var(--border);border-radius:2px;color:var(--slate)">${c}</span>`).join('')}
+      </div>
+    </div></div>`;
+}
+function renderInteraction(viz){
+  const{pts,NEd,MEd,inside}=viz;
+  const allN=pts.map(p=>p[0]),allM=pts.map(p=>p[1]);
+  const Nmax=Math.max(...allN,NEd*1.15),Nmin=Math.min(...allN,NEd*1.15,-100),Mmax=Math.max(...allM,MEd*1.15,10);
+  const W=480,H=320,PL=56,PR=20,PT=20,PB=42,cw=W-PL-PR,ch=H-PT-PB;
+  const yN=N=>PT+(Nmax-N)/(Nmax-Nmin)*ch;
+  const xM=M=>PL+M/Mmax*cw;
+  const path=pts.map((p,i)=>`${i?'L':'M'}${xM(p[1]).toFixed(1)},${yN(p[0]).toFixed(1)}`).join(' ');
+  let grid='';
+  for(let n=Math.ceil(Nmin/500)*500;n<=Nmax;n+=500)
+    grid+=`<line x1="${PL}" y1="${yN(n).toFixed(0)}" x2="${W-PR}" y2="${yN(n).toFixed(0)}" stroke="#e8e5df" stroke-width="0.8"/>
+      <text x="${PL-5}" y="${(yN(n)+3).toFixed(0)}" font-family="IBM Plex Mono" font-size="9" fill="#9a958c" text-anchor="end">${n}</text>`;
+  for(let mv=0;mv<=Mmax;mv+=Math.max(25,Math.ceil(Mmax/5/25)*25))
+    grid+=`<line x1="${xM(mv).toFixed(0)}" y1="${PT}" x2="${xM(mv).toFixed(0)}" y2="${H-PB}" stroke="#e8e5df" stroke-width="0.8"/>
+      <text x="${xM(mv).toFixed(0)}" y="${H-PB+13}" font-family="IBM Plex Mono" font-size="9" fill="#9a958c" text-anchor="middle">${mv}</text>`;
+  const ptX=xM(MEd),ptY=yN(NEd);
+  return`<div class="card"><div class="card-hdr"><span class="card-lbl">N–M Interaction Diagram</span>
+    <span style="font-family:var(--mono);font-size:.62rem;color:var(--muted)">N kN · M kNm</span></div>
+    <div style="padding:12px 16px;overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block">
+      ${grid}
+      <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${H-PB}" stroke="#14110f" stroke-width="1.2"/>
+      <line x1="${PL}" y1="${H-PB}" x2="${W-PR}" y2="${H-PB}" stroke="#14110f" stroke-width="1.2"/>
+      <line x1="${PL}" y1="${yN(0).toFixed(0)}" x2="${W-PR}" y2="${yN(0).toFixed(0)}" stroke="#bbb5aa" stroke-width="0.8" stroke-dasharray="4,3"/>
+      <path d="${path} Z" fill="rgba(192,86,59,0.08)" stroke="#c0563b" stroke-width="2"/>
+      <line x1="${ptX.toFixed(0)}" y1="${PT}" x2="${ptX.toFixed(0)}" y2="${ptY.toFixed(0)}" stroke="rgba(61,82,92,.28)" stroke-width="1" stroke-dasharray="3,2"/>
+      <line x1="${PL}" y1="${ptY.toFixed(0)}" x2="${ptX.toFixed(0)}" y2="${ptY.toFixed(0)}" stroke="rgba(61,82,92,.28)" stroke-width="1" stroke-dasharray="3,2"/>
+      <circle cx="${ptX.toFixed(0)}" cy="${ptY.toFixed(0)}" r="7" fill="${inside?'rgba(46,158,91,.15)':'rgba(209,72,54,.15)'}" stroke="${inside?'#2e9e5b':'#d14836'}" stroke-width="2"/>
+      <circle cx="${ptX.toFixed(0)}" cy="${ptY.toFixed(0)}" r="3" fill="${inside?'#2e9e5b':'#d14836'}"/>
+      <text x="${(ptX+9).toFixed(0)}" y="${(ptY-6).toFixed(0)}" font-family="IBM Plex Mono" font-size="9" fill="${inside?'#1d7a44':'#a83523'}">(${MEd}, ${NEd})</text>
+    </svg></div></div>`;
+}
+function renderAnchorage(viz){
+  const{goodRows,poorRows}=viz;
+  const tbl=(rows,lbl,cls)=>`
+    <div style="padding:10px 16px 2px;font-size:.67rem;font-weight:600;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">${lbl}</div>
+    <div style="overflow-x:auto;padding:0 16px 12px"><table class="anc-tbl">
+      <thead><tr><th>Bar</th><th>fbd N/mm²</th><th>lb,rqd mm</th><th>lbd mm</th><th>lbd/Ø</th><th>Lap l0 mm</th><th>l0/Ø</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td class="${cls}" style="font-weight:600">H${r.dia}</td><td>${r.fbd}</td>
+        <td>${r.lb_rqd}</td><td>${r.lbd}</td><td>${r.lbd_phi}Ø</td><td>${r.l0}</td><td>${r.l0_phi}Ø</td></tr>`).join('')}</tbody>
+    </table></div>`;
+  return`<div class="card">${tbl(goodRows,'Good bond — bottom/side bars, h≤300mm (η1=1.0)','good')}${tbl(poorRows,'Poor bond — top bars or h>300mm (η1=0.7)','poor')}</div>
+    <div class="card"><div class="card-hdr"><span class="card-lbl">How to use</span></div>
+    <ul class="steps">
+      <li class="step"><span class="sk">lbd</span><span class="sd">Tension anchorage — straight bar. For hook/bend multiply by α1=0.7.</span><span class="sv">from anchorage pt</span></li>
+      <li class="step"><span class="sk">l0</span><span class="sd">Lap length. Reduce α6 to 1.15 if ≤25% lapped at same section.</span><span class="sv">overlap length</span></li>
+      <li class="step"><span class="sk">Top bars</span><span class="sd">Poor bond applies when >300mm concrete cast below bar. ~43% longer than bottom bars.</span><span class="sv">η1=0.7</span></li>
+      <li class="step"><span class="sk">Compression</span><span class="sd">Compression anchorage = 0.6×lbd. Full lap length for compression laps.</span><span class="sv">EC2 Cl 8.4.3</span></li>
+    </ul></div>`;
+}
+function render(res,outId){
+  let h=`<div class="card"><div class="util-card">
+    <div class="util-hdr"><span class="util-name">${res.element}</span>${vt(res.result.status)}</div>
+    <div style="font-family:var(--mono);font-size:.7rem;color:var(--muted);margin-top:4px">${Object.entries(res.inputs).slice(0,5).map(([k,v])=>`${k.replace(/_/g,' ')} ${v}`).join('  ·  ')}</div>
+  </div>
+  <div class="dg dg-3">${Object.entries(res.result).filter(([k])=>k!=='status').map(([k,v])=>dc(k.replace(/_/g,' '),v,'')).join('')}</div></div>`;
+  if(res.viz){
+    if(res.viz.type==='interaction')h+=renderInteraction(res.viz);
+    if(res.viz.type==='anchorage')h+=renderAnchorage(res.viz);
+  }
+  h+=renderReading(res.reading);
+  h+=renderChecks(res.checks);
+  h+=renderWorking(res.working);
+  h+=renderAssumptions(res.assumptions,res.clauses);
+  h+=`<div class="footnote">${res.clauses.join(' · ')} · γC=1.5 · γS=1.15</div>`;
+  document.getElementById(outId).innerHTML=h;
+  logCalc(res);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CALC LOG
+// ═══════════════════════════════════════════════════════════════
+const _LOG=[];
+function logCalc(res){_LOG.unshift({ts:new Date().toLocaleTimeString(),data:res});renderLog();}
+function renderLog(){
+  const el=document.getElementById('log-body');
+  if(!_LOG.length){el.innerHTML='<div style="color:var(--muted);font-size:.78rem;padding:24px 0;text-align:center">No calculations run yet.</div>';return;}
+  el.innerHTML=_LOG.map(e=>{
+    const r=e.data,pass=/PASS|TABLE|OK/i.test(r.result.status)&&!/FAIL/i.test(r.result.status);
+    return`<div class="log-entry">
+      <div class="log-hdr">
+        <span class="log-title">${r.element}</span>
+        <div style="display:flex;gap:12px;align-items:center">
+          <span class="${pass?'log-status-pass':'log-status-fail'}">${r.result.status}</span>
+          <span style="font-family:var(--mono);font-size:.63rem;color:var(--muted)">${e.ts}</span>
+        </div>
+      </div>
+      <div class="log-body">
+        <div style="font-family:var(--mono);font-size:.67rem;color:var(--muted);margin-bottom:5px">${Object.entries(r.inputs).map(([k,v])=>`${k}=${v}`).join(' · ')}</div>
+        ${r.assumptions.map(a=>`<div class="log-assm"><span class="log-assm-arrow">→</span>${a}</div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+function clearLog(){_LOG.length=0;renderLog();}
+function dl(content,name,type){
+  try{
+    const file=new File([content],name,{type});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      navigator.share({files:[file],title:name}).catch(()=>{});
+      return;
+    }
+  }catch(e){}
+  const a=document.createElement('a');a.href='data:'+type+';charset=utf-8,'+encodeURIComponent(content);a.download=name;a.click();
+}
+function exportJSON(){dl(JSON.stringify(_LOG.map(e=>e.data),null,2),'rc_calculations.json','application/json');}
+function exportTxt(){
+  const txt='RC DESIGN CALCULATIONS — '+new Date().toLocaleString()+'\n'+'='.repeat(64)+'\n\n'+
+    _LOG.map(e=>{const r=e.data;
+      return`[${e.ts}] ${r.element} — ${r.result.status}\n\nINPUTS:\n`+
+        Object.entries(r.inputs).map(([k,v])=>`  ${k} = ${v}`).join('\n')+
+        `\n\nWORKING:\n`+Object.entries(r.working).filter(([,v])=>v!=null).map(([k,v])=>`  ${k} = ${v}`).join('\n')+
+        `\n\nRESULT:\n`+Object.entries(r.result).map(([k,v])=>`  ${k} = ${v}`).join('\n')+
+        `\n\nCHECKS:\n`+r.checks.map(c=>`  ${c.pass?'PASS':'FAIL'} | ${c.name} | util ${c.util}`).join('\n')+
+        `\n\nASSUMPTIONS:\n`+r.assumptions.map(a=>`  - ${a}`).join('\n')+
+        `\n\nCLAUSES: ${r.clauses.join(', ')}`;
+    }).join('\n\n'+'─'.repeat(64)+'\n\n');
+  dl(txt,'rc_calculations.txt','text/plain');
+}
+
+// Send to Template — writes JSON to outputs folder via download
+// Claude Code picks it up from there
+function sendToTemplate(){
+  if(!_LOG.length){toast('No calculations to send. Run some calcs first.');return;}
+  const payload={
+    generated:new Date().toISOString(),
+    calc_count:_LOG.length,
+    elements:_LOG.map(e=>e.data.element),
+    calcs:_LOG.map(e=>e.data)
+  };
+  dl(JSON.stringify(payload,null,2),'calc_output.json','application/json');
+  toast(`calc_output.json ready (${_LOG.length} calc${_LOG.length>1?'s':''}) — save it to "RC Design Tool" in iCloud Drive`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INPUT HANDLERS
+// ═══════════════════════════════════════════════════════════════
+function v(id){return document.getElementById(id).value;}
+function runBeam(){render(calcBeam({b:+v('bm-b'),d:+v('bm-d'),fck:+v('bm-fck'),fyk:+v('bm-fyk'),MEd:+v('bm-med'),VEd:+v('bm-ved'),linkDia:+v('bm-ldia'),linkLegs:+v('bm-legs'),linkS:+v('bm-s'),barDia:+v('bm-bardia'),nBars:+v('bm-nbars'),span:+v('bm-span'),Ksup:+v('bm-sup')}),'out-beam');}
+function runColumn(){render(calcColumn({shape:v('cc-shape'),b:+v('cc-b'),h:+v('cc-h'),D:+v('cc-D'),fck:+v('cc-fck'),fyk:+v('cc-fyk'),cover:+v('cc-cov'),linkDia:+v('cc-lnk'),barDia:+v('cc-dia'),nBars:+v('cc-nbars'),NEd:+v('cc-ned'),MEd:+v('cc-med')}),'out-column');}
+function runSlab(){render(calcSlab({h:+v('sl-h'),cover:+v('sl-cov'),barDia:+v('sl-dia'),fck:+v('sl-fck'),fyk:+v('sl-fyk'),Ksup:+v('sl-sup'),MEd:+v('sl-med'),VEd:+v('sl-ved'),span:+v('sl-span')}),'out-slab');}
+function runShearWall(){render(calcShearWall({lw:+v('sw-lw'),t:+v('sw-t'),fck:+v('sw-fck'),fyk:+v('sw-fyk'),NEd:+v('sw-ned'),VEd:+v('sw-ved'),MEd:+v('sw-med')}),'out-wall');}
+function runRetaining(){render(calcRetaining({H:+v('rw-H'),t:+v('rw-t'),cover:+v('rw-cov'),fck:+v('rw-fck'),fyk:500,gs:+v('rw-gs'),Ka:+v('rw-Ka'),qSur:+v('rw-q')}),'out-wall');}
+function runCrack(){
+  const expVal=v('cr-exp').split('_');
+  render(calcCrack({b:+v('cr-b'),h:+v('cr-h'),d:+v('cr-d'),cover:+v('cr-cov'),dia:+v('cr-dia'),As:+v('cr-As'),MEd:+v('cr-med'),fck:+v('cr-fck'),fyk:500,bond:v('cr-bond'),wk_lim:+expVal[1]}),'out-crack');
+}
+function runAnchorage(){render(calcAnchorage({fck:+v('an-fck'),fyk:+v('an-fyk'),cover:+v('an-cov'),alpha6:+v('an-pct'),alpha1:+v('an-type')}),'out-anchorage');}
+function runThermal(){
+  const rest=v('th-rest');
+  const L=+v('th-L'), H=+v('th-H');
+  const R=ciria_R(rest,L,H);
+  document.getElementById('th-R-display').value=R.toFixed(2);
+  render(calcThermal({fck:+v('th-fck'),fyk:+v('th-fyk'),t:+v('th-t'),cementType:v('th-cem'),
+    cementKg:+v('th-kg'),formwork:v('th-fw'),restraint:rest,
+    L_pour:L,H_pour:H,dT2:+v('th-dT2'),
+    dia:+v('th-dia'),cover:+v('th-cov'),wk_lim:+v('th-wklim')}),'out-thermal');
+}
+// Live R update as inputs change
+['th-rest','th-L','th-H'].forEach(id=>{
+  document.getElementById(id)&&document.getElementById(id).addEventListener('input',()=>{
+    const R=ciria_R(v('th-rest'),+v('th-L'),+v('th-H'));
+    document.getElementById('th-R-display').value=R.toFixed(2);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════════
+const TABS=['beam','column','slab','wall','crack','anchorage','thermal','log'];
+function goTab(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  const i=TABS.indexOf(id);
+  if(i>=0)document.querySelectorAll('.nav-btn')[i].classList.add('active');
+}
+function toggleShape(){
+  const c=v('cc-shape')==='circ';
+  document.getElementById('cc-rect').style.display=c?'none':'block';
+  document.getElementById('cc-circ').style.display=c?'block':'none';
+}
+function switchWall(t){
+  document.getElementById('wl-sh-form').style.display=t==='sh'?'flex':'none';
+  document.getElementById('wl-rt-form').style.display=t==='rt'?'flex':'none';
+  document.getElementById('wl-sh-tab').classList.toggle('active',t==='sh');
+  document.getElementById('wl-rt-tab').classList.toggle('active',t==='rt');
+}
+function toast(msg){
+  const el=document.createElement('div');
+  el.className='toast';el.textContent=msg;document.body.appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),300)},3000);
+}
+</script>
+</body>
+</html>
