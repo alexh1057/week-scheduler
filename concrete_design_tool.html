@@ -48,6 +48,7 @@ select:focus,input:focus{outline:none;border-color:var(--rust);background:#fff}
 .utag{padding:0 10px;font-family:var(--mono);font-size:.68rem;color:var(--muted);background:#e8e5df;border-left:1px solid var(--border);display:flex;align-items:center;white-space:nowrap}
 .hint{font-size:.65rem;color:var(--muted);font-style:italic}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sect-lbl{font-family:var(--mono);font-size:.63rem;font-weight:600;color:var(--rust-dim);letter-spacing:.1em;text-transform:uppercase;border-top:1px solid var(--border);padding-top:10px;margin-top:2px}
 .sub-tabs{display:flex;border-bottom:1px solid var(--border);flex-wrap:wrap}
 .sub-tab{flex:1;padding:10px 6px;text-align:center;font-family:var(--mono);font-size:.67rem;font-weight:600;color:var(--muted);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .15s;letter-spacing:.03em;min-width:70px}
 .sub-tab.active{color:var(--slate);border-bottom-color:var(--rust);background:rgba(192,86,59,.05)}
@@ -248,6 +249,7 @@ select:focus,input:focus{outline:none;border-color:var(--rust);background:#fff}
       <div class="sub-tabs">
         <button class="sub-tab active" id="wl-sh-tab" onclick="switchWall('sh')">SHEAR WALL</button>
         <button class="sub-tab" id="wl-rt-tab" onclick="switchWall('rt')">RETAINING WALL</button>
+        <button class="sub-tab" id="wl-pd-tab" onclick="switchWall('pd')">PANEL DESIGNER (TSD)</button>
       </div>
       <!-- Shear wall -->
       <div id="wl-sh-form" class="form-inner">
@@ -282,6 +284,50 @@ select:focus,input:focus{outline:none;border-color:var(--rust);background:#fff}
         </div>
         <div class="field"><label>Surcharge q</label><div class="iu"><input type="number" id="rw-q" value="5" min="0"><span class="utag">kN/m²</span></div></div>
         <button class="btn" onclick="runRetaining()">▶ CHECK WALL</button>
+      </div>
+      <!-- Wall panel designer (Tekla Structural Designer forces) -->
+      <div id="wl-pd-form" class="form-inner" style="display:none">
+        <div class="notice info">Design from Tekla Structural Designer wall forces. Fill in whichever force group(s) apply — groups left at 0 are skipped. Sandwich-model out-of-plane + membrane design, EC2 Cl 6.1/6.2 + 9.6, EN1992-2 Annex LL.</div>
+        <div class="row2">
+          <div class="field"><label>fck</label><select id="wp-fck"><option value="25">C25/30</option><option value="30" selected>C30/37</option><option value="32">C32/40</option><option value="35">C35/45</option></select></div>
+          <div class="field"><label>fyk</label><select id="wp-fyk"><option value="500" selected>B500</option></select></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Thickness t</label><div class="iu"><input type="number" id="wp-t" value="250" min="150"><span class="utag">mm</span></div></div>
+          <div class="field"><label>Cover</label><div class="iu"><input type="number" id="wp-cov" value="35" min="15"><span class="utag">mm</span></div></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Vertical bar dia</label><select id="wp-diaV"><option value="10">H10</option><option value="12" selected>H12</option><option value="16">H16</option><option value="20">H20</option><option value="25">H25</option></select></div>
+          <div class="field"><label>Horizontal bar dia</label><select id="wp-diaH"><option value="10" selected>H10</option><option value="12">H12</option><option value="16">H16</option></select></div>
+        </div>
+
+        <div class="sect-lbl">In-plane pier — N, V, M (Tekla pier results)</div>
+        <div class="row2">
+          <div class="field"><label>Wall length lw</label><div class="iu"><input type="number" id="wp-lw" value="4.0" min="0" step="0.5"><span class="utag">m</span></div></div>
+          <div class="field"><label>NEd (axial)</label><div class="iu"><input type="number" id="wp-ned" value="0" min="0"><span class="utag">kN</span></div></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>VEd (in-plane shear)</label><div class="iu"><input type="number" id="wp-ved" value="0" min="0"><span class="utag">kN</span></div></div>
+          <div class="field"><label>MEd (in-plane moment)</label><div class="iu"><input type="number" id="wp-med" value="0" min="0"><span class="utag">kNm</span></div></div>
+        </div>
+
+        <div class="sect-lbl">Out-of-plane panel — per metre (Tekla panel results)</div>
+        <div class="row2">
+          <div class="field"><label>Mv (vertical-span moment)</label><div class="iu"><input type="number" id="wp-mv" value="0" min="0"><span class="utag">kNm/m</span></div></div>
+          <div class="field"><label>Mh (horizontal-span moment)</label><div class="iu"><input type="number" id="wp-mh" value="0" min="0"><span class="utag">kNm/m</span></div></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Qv (out-of-plane shear)</label><div class="iu"><input type="number" id="wp-qv" value="0" min="0"><span class="utag">kN/m</span></div></div>
+          <div class="field"><label>Qh (out-of-plane shear)</label><div class="iu"><input type="number" id="wp-qh" value="0" min="0"><span class="utag">kN/m</span></div></div>
+        </div>
+
+        <div class="sect-lbl">In-plane membrane — per metre (Tekla FE shell results)</div>
+        <div class="row2">
+          <div class="field"><label>Nv (vertical, +ve tension)</label><div class="iu"><input type="number" id="wp-nv" value="0"><span class="utag">kN/m</span></div></div>
+          <div class="field"><label>Nh (horizontal, +ve tension)</label><div class="iu"><input type="number" id="wp-nh" value="0"><span class="utag">kN/m</span></div></div>
+        </div>
+        <div class="field"><label>Nvh (in-plane shear)</label><div class="iu"><input type="number" id="wp-nvh" value="0"><span class="utag">kN/m</span></div></div>
+        <button class="btn" onclick="runWallPanel()">▶ DESIGN PANEL</button>
       </div>
     </div>
     <div id="out-wall"><div class="card placeholder"><div class="placeholder-icon">▭</div><p>Shear wall or retaining wall.<br>Reinforcement · shear · stability notes.</p></div></div>
@@ -701,6 +747,117 @@ function calcRetaining(inp){
     clauses:["EC2 Cl 6.1","EC2 Cl 6.2.2","EC7 Cl 9 (stability not included)"]};
 }
 
+// ── RC Wall Panel — design from Tekla Structural Designer wall forces ──
+// Accepts whichever force set is populated: in-plane pier (NEd,VEd,MEd over
+// length lw), out-of-plane panel bending+shear (Mv,Mh,Qv,Qh per metre), and/or
+// in-plane membrane forces (Nv,Nh,Nvh per metre). Unused groups default to 0.
+function calcWallPanel(inp){
+  const{fck,fyk,t,cover,barDiaV,barDiaH,lw,NEd,VEd,MEd,Mv,Mh,Qv,Qh,Nv,Nh,Nvh}=inp;
+  const m=ec2mat(fck,fyk);
+  const dv=t-cover-barDiaV/2,dh=t-cover-barDiaV-barDiaH/2;
+  const AcM=t*1000;
+  const AsVmin=0.002*AcM,AsHmin=Math.max(0.25*AsVmin,0.001*AcM); // EC2 Cl 9.6.2/9.6.3, total both faces, mm²/m
+
+  // Section 1 — in-plane pier, boundary-element method (Cl 6.2.2 + 9.6.2)
+  const havePierLoad=lw>0&&(NEd!==0||VEd!==0||MEd!==0);
+  const z1=lw>0?0.8*lw:1; // m
+  const Ft1=MEd/z1-NEd/2,Fc1=MEd/z1+NEd/2; // kN, end-zone tension/compression resultants
+  const AsBoundary=Math.max(Ft1,0)*1e3/m.fyd; // mm², extra vertical steel at the tension end
+  const AcBoundary=t*t; // t×t toe zone — preliminary rule of thumb
+  const sigmaCBoundary=Math.max(Fc1,0)*1e3/AcBoundary;
+  const dw=lw>0?0.8*lw*1000:1; // mm
+  const kw=Math.min(1+Math.sqrt(200/dw),2.0);
+  const vminW=0.035*Math.pow(kw,1.5)*Math.sqrt(fck);
+  const VRdcPier=Math.max(0.18/1.5*kw*Math.pow(100*0.002*fck,1/3),vminW)*t*dw/1000; // kN, min vertical steel basis
+  const pierLinksNeeded=VEd>VRdcPier;
+  const AsHShear=pierLinksNeeded?Math.max((VEd-VRdcPier)*1e3/(dw*m.fyd),0)*1000:0; // mm²/m, additional horizontal steel
+
+  // Section 2 — out-of-plane bending (per metre strip, Cl 6.1)
+  function bend(M,d){
+    if(!(M>0))return{As:0,K:0,z:d,doubly:false};
+    const K=M*1e6/(1000*d*d*fck),doubly=K>0.167;
+    const z=doubly?0.82*d:Math.min(d*(0.5+Math.sqrt(Math.max(0.25-K/1.134,0))),0.95*d);
+    return{As:M*1e6/(m.fyd*z),K,z,doubly};
+  }
+  const bV=bend(Mv,dv),bH=bend(Mh,dh);
+
+  // Section 3 — in-plane membrane forces, sandwich model split equally to both faces
+  // (Nielsen/Baumann 45° formulae, EN1992-2 Annex LL)
+  const Ftv=Nv+Math.abs(Nvh),Fth=Nh+Math.abs(Nvh),Fcs=2*Math.abs(Nvh);
+  const AsMemV=Math.max(Ftv,0)*1e3/m.fyd/2,AsMemH=Math.max(Fth,0)*1e3/m.fyd/2; // mm²/m, per face
+  const nuFcd=0.6*(1-fck/250)*m.fcd,sigmaStrut=Fcs/t; // N/mm²
+
+  // Combine, per face, per metre run
+  const AsV=Math.max(bV.As+AsMemV,AsVmin/2);
+  const AsH=Math.max(bH.As+AsMemH,AsHmin/2,AsHShear/2);
+
+  // Out-of-plane shear (Cl 6.2.2), using the combined reinforcement just derived
+  function shearOOP(Q,As,d){
+    const rho=Math.min(As/(1000*d),0.02);
+    const k=Math.min(1+Math.sqrt(200/d),2.0);
+    const VRdc=Math.max(0.18/1.5*k*Math.pow(100*rho*fck,1/3),0.035*Math.pow(k,1.5)*Math.sqrt(fck))*1000*d/1000;
+    return{VRdc,pass:Q<=VRdc};
+  }
+  const shV=shearOOP(Qv,AsV,dv),shH=shearOOP(Qh,AsH,dh);
+
+  const checks=[];
+  if(havePierLoad){
+    checks.push({name:"In-plane shear VEd ≤ VRd,c (min steel)",demand:VEd,capacity:+VRdcPier.toFixed(0),util:+(VEd/VRdcPier).toFixed(3),pass:!pierLinksNeeded});
+    checks.push({name:"Boundary compression σc ≤ fcd",demand:+sigmaCBoundary.toFixed(2),capacity:+m.fcd.toFixed(2),util:+(sigmaCBoundary/m.fcd).toFixed(3),pass:sigmaCBoundary<=m.fcd});
+  }
+  if(Mv>0)checks.push({name:"Out-of-plane K (vertical span) ≤ K'=0.167",demand:+bV.K.toFixed(4),capacity:0.167,util:+(bV.K/0.167).toFixed(3),pass:!bV.doubly});
+  if(Mh>0)checks.push({name:"Out-of-plane K (horizontal span) ≤ K'=0.167",demand:+bH.K.toFixed(4),capacity:0.167,util:+(bH.K/0.167).toFixed(3),pass:!bH.doubly});
+  if(Qv>0)checks.push({name:"Out-of-plane shear Qv ≤ VRd,c",demand:Qv,capacity:+shV.VRdc.toFixed(1),util:+(Qv/shV.VRdc).toFixed(3),pass:shV.pass});
+  if(Qh>0)checks.push({name:"Out-of-plane shear Qh ≤ VRd,c",demand:Qh,capacity:+shH.VRdc.toFixed(1),util:+(Qh/shH.VRdc).toFixed(3),pass:shH.pass});
+  if(Nvh!==0)checks.push({name:"Concrete strut σc=2|Nxy|/t ≤ ν·fcd",demand:+sigmaStrut.toFixed(2),capacity:+nuFcd.toFixed(2),util:+(sigmaStrut/nuFcd).toFixed(3),pass:sigmaStrut<=nuFcd});
+  const pass=checks.every(c=>c.pass);
+
+  const reading=[];
+  if(havePierLoad){
+    if(Ft1>0)reading.push({t:'warn',s:`In-plane moment creates a net tension of ${Ft1.toFixed(0)}kN at one end of the pier (z=0.8lw=${z1.toFixed(2)}m). Provide ${AsBoundary.toFixed(0)}mm² additional vertical steel concentrated in a boundary (toe) zone ~${t}mm wide at that end.`});
+    else reading.push({t:'good',s:`NEd/2 ≥ M/z — the pier remains in net compression at both ends (Ft1=${Ft1.toFixed(0)}kN). No additional boundary tension steel required from in-plane bending.`});
+    reading.push({t:sigmaCBoundary<=m.fcd?'good':'fail',s:`Boundary compression σc=${sigmaCBoundary.toFixed(2)}N/mm² ${sigmaCBoundary<=m.fcd?'≤':'>'} fcd=${m.fcd.toFixed(2)}N/mm² (toe zone ${t}×${t}mm).`});
+    if(pierLinksNeeded)reading.push({t:'warn',s:`VEd=${VEd}kN > VRd,c=${VRdcPier.toFixed(0)}kN. Additional horizontal shear steel of ${AsHShear.toFixed(0)}mm²/m (both faces) required beyond minimum.`});
+    else reading.push({t:'good',s:`VEd=${VEd}kN ≤ VRd,c=${VRdcPier.toFixed(0)}kN (with minimum vertical steel). No additional horizontal shear steel required.`});
+  }
+  if(Mv>0)reading.push({t:bV.doubly?'fail':'good',s:`Out-of-plane vertical-span bending: K=${bV.K.toFixed(3)}, As=${bV.As.toFixed(0)}mm²/m per face.${bV.doubly?' K>0.167 — section too thin for singly-reinforced design; increase thickness.':''}`});
+  if(Mh>0)reading.push({t:bH.doubly?'fail':'good',s:`Out-of-plane horizontal-span bending: K=${bH.K.toFixed(3)}, As=${bH.As.toFixed(0)}mm²/m per face.${bH.doubly?' K>0.167 — section too thin for singly-reinforced design; increase thickness.':''}`});
+  if(Nv!==0||Nh!==0||Nvh!==0){
+    reading.push({t:'warn',s:`Membrane forces split equally between faces (sandwich model): As,v,mem=${AsMemV.toFixed(0)}mm²/m/face, As,h,mem=${AsMemH.toFixed(0)}mm²/m/face, concrete strut σc=${sigmaStrut.toFixed(2)}N/mm² vs ν·fcd=${nuFcd.toFixed(2)}N/mm².`});
+  }
+  if(Qv>0)reading.push({t:shV.pass?'good':'fail',s:`Out-of-plane shear Qv=${Qv}kN/m vs VRd,c=${shV.VRdc.toFixed(1)}kN/m (based on As,v provided).`});
+  if(Qh>0)reading.push({t:shH.pass?'good':'fail',s:`Out-of-plane shear Qh=${Qh}kN/m vs VRd,c=${shH.VRdc.toFixed(1)}kN/m (based on As,h provided).`});
+  reading.push({t:'warn',s:`Required reinforcement per metre run (both faces, governing of bending/membrane/minimum): As,v=${(AsV*2).toFixed(0)}mm²/m, As,h=${(AsH*2).toFixed(0)}mm²/m. Minimums: As,v,min=${AsVmin.toFixed(0)}mm²/m, As,h,min=${AsHmin.toFixed(0)}mm²/m (EC2 Cl 9.6.2/9.6.3).`});
+
+  return{element:"RC Wall Panel (Tekla forces → EC2)",
+    inputs:{fck_MPa:fck,fyk_MPa:fyk,t_mm:t,cover_mm:cover,bars:`V:H${barDiaV} / H:H${barDiaH}`,
+      lw_m:lw,NEd_kN:NEd,VEd_kN:VEd,MEd_kNm:MEd,
+      Mv_kNm_m:Mv,Mh_kNm_m:Mh,Qv_kN_m:Qv,Qh_kN_m:Qh,
+      Nv_kN_m:Nv,Nh_kN_m:Nh,Nvh_kN_m:Nvh},
+    working:{d_v_mm:+dv.toFixed(0),d_h_mm:+dh.toFixed(0),
+      z1_m:+z1.toFixed(2),Ft1_kN:+Ft1.toFixed(1),Fc1_kN:+Fc1.toFixed(1),
+      As_boundary_mm2:+AsBoundary.toFixed(0),sigma_c_boundary_MPa:+sigmaCBoundary.toFixed(2),
+      VRdc_pier_kN:+VRdcPier.toFixed(1),As_h_shear_mm2_m:+AsHShear.toFixed(0),
+      K_v:+bV.K.toFixed(4),K_h:+bH.K.toFixed(4),
+      As_bend_v_mm2_m_face:+bV.As.toFixed(0),As_bend_h_mm2_m_face:+bH.As.toFixed(0),
+      As_mem_v_mm2_m_face:+AsMemV.toFixed(0),As_mem_h_mm2_m_face:+AsMemH.toFixed(0),
+      sigma_strut_MPa:+sigmaStrut.toFixed(2),nu_fcd_MPa:+nuFcd.toFixed(2),
+      VRdc_v_kN_m:+shV.VRdc.toFixed(1),VRdc_h_kN_m:+shH.VRdc.toFixed(1),
+      fcd_MPa:+m.fcd.toFixed(2),fyd_MPa:+m.fyd.toFixed(1)},
+    result:{As_v_req_mm2_m:+(AsV*2).toFixed(0),As_h_req_mm2_m:+(AsH*2).toFixed(0),
+      As_boundary_req_mm2:+AsBoundary.toFixed(0),
+      As_v_min_mm2_m:+AsVmin.toFixed(0),As_h_min_mm2_m:+AsHmin.toFixed(0),
+      status:pass?"PASS":"FAIL"},
+    checks,reading,
+    assumptions:["In-plane pier: boundary-element method, lever arm z=0.8·lw, toe zone t×t (preliminary)",
+      "Out-of-plane bending: As computed for pure bending only — axial NEd not used to relieve out-of-plane As (conservative)",
+      "Membrane forces Nv,Nh,Nvh split equally between the two faces (sandwich model), 45° concrete strut for Nxy",
+      "Out-of-plane shear checked using the combined (bending+membrane+min) reinforcement on each face",
+      "d_v=t-cover-ØV/2 (vertical bars outer layer), d_h=t-cover-ØV-ØH/2 (horizontal bars inner layer)",
+      "Unused force groups (left at 0) do not generate checks","γC=1.5 γS=1.15"],
+    clauses:["EC2 Cl 6.1","EC2 Cl 6.2.2","EC2 Cl 9.6.2","EC2 Cl 9.6.3","EN 1992-2 Annex LL (membrane, simplified)"]};
+}
+
 function calcCrack(inp){
   const{b,h,d,cover,dia,As,MEd,fck,fyk,bond,wk_lim}=inp;
   const m=ec2mat(fck,fyk);
@@ -1018,6 +1175,11 @@ function runColumn(){render(calcColumn({shape:v('cc-shape'),b:+v('cc-b'),h:+v('c
 function runSlab(){render(calcSlab({h:+v('sl-h'),cover:+v('sl-cov'),barDia:+v('sl-dia'),fck:+v('sl-fck'),fyk:+v('sl-fyk'),Ksup:+v('sl-sup'),MEd:+v('sl-med'),VEd:+v('sl-ved'),span:+v('sl-span')}),'out-slab');}
 function runShearWall(){render(calcShearWall({lw:+v('sw-lw'),t:+v('sw-t'),fck:+v('sw-fck'),fyk:+v('sw-fyk'),NEd:+v('sw-ned'),VEd:+v('sw-ved'),MEd:+v('sw-med')}),'out-wall');}
 function runRetaining(){render(calcRetaining({H:+v('rw-H'),t:+v('rw-t'),cover:+v('rw-cov'),fck:+v('rw-fck'),fyk:500,gs:+v('rw-gs'),Ka:+v('rw-Ka'),qSur:+v('rw-q')}),'out-wall');}
+function runWallPanel(){render(calcWallPanel({fck:+v('wp-fck'),fyk:+v('wp-fyk'),t:+v('wp-t'),cover:+v('wp-cov'),
+  barDiaV:+v('wp-diaV'),barDiaH:+v('wp-diaH'),
+  lw:+v('wp-lw'),NEd:+v('wp-ned'),VEd:+v('wp-ved'),MEd:+v('wp-med'),
+  Mv:+v('wp-mv'),Mh:+v('wp-mh'),Qv:+v('wp-qv'),Qh:+v('wp-qh'),
+  Nv:+v('wp-nv'),Nh:+v('wp-nh'),Nvh:+v('wp-nvh')}),'out-wall');}
 function runCrack(){
   const expVal=v('cr-exp').split('_');
   render(calcCrack({b:+v('cr-b'),h:+v('cr-h'),d:+v('cr-d'),cover:+v('cr-cov'),dia:+v('cr-dia'),As:+v('cr-As'),MEd:+v('cr-med'),fck:+v('cr-fck'),fyk:500,bond:v('cr-bond'),wk_lim:+expVal[1]}),'out-crack');
@@ -1060,8 +1222,10 @@ function toggleShape(){
 function switchWall(t){
   document.getElementById('wl-sh-form').style.display=t==='sh'?'flex':'none';
   document.getElementById('wl-rt-form').style.display=t==='rt'?'flex':'none';
+  document.getElementById('wl-pd-form').style.display=t==='pd'?'flex':'none';
   document.getElementById('wl-sh-tab').classList.toggle('active',t==='sh');
   document.getElementById('wl-rt-tab').classList.toggle('active',t==='rt');
+  document.getElementById('wl-pd-tab').classList.toggle('active',t==='pd');
 }
 function toast(msg){
   const el=document.createElement('div');
