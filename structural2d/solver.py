@@ -222,7 +222,45 @@ def dof_indices(node_ids: list[str], node_id: str) -> list[int]:
     return [i * _DOF_PER_NODE, i * _DOF_PER_NODE + 1, i * _DOF_PER_NODE + 2]
 
 
+def validate(model: FrameModel) -> None:
+    """Reject dangling references and out-of-range load positions with
+    readable messages before they surface as bare KeyErrors mid-solve."""
+    for mid, m in model.members.items():
+        for nid in (m.node_i, m.node_j):
+            if nid not in model.nodes:
+                raise AnalysisError(f"Member {mid!r} refers to node {nid!r}, which is not on the Nodes sheet.")
+    for nid in model.supports:
+        if nid not in model.nodes:
+            raise AnalysisError(f"Support at node {nid!r}: that node is not on the Nodes sheet.")
+    for load in model.nodal_loads:
+        if load.node_id not in model.nodes:
+            raise AnalysisError(f"Nodal load at node {load.node_id!r}: that node is not on the Nodes sheet.")
+    for p in model.point_loads:
+        if p.member_id not in model.members:
+            raise AnalysisError(f"Point load on member {p.member_id!r}: that member is not on the Members sheet.")
+        L = model.member_length(p.member_id)
+        if not 0.0 <= p.position <= L + 1e-9:
+            raise AnalysisError(
+                f"Point load on member {p.member_id!r}: position {p.position} is outside the member (length {L:g})."
+            )
+    for u in model.udls:
+        if u.member_id not in model.members:
+            raise AnalysisError(f"UDL on member {u.member_id!r}: that member is not on the Members sheet.")
+        L = model.member_length(u.member_id)
+        lo = 0.0 if u.start is None else u.start
+        hi = L if u.end is None else u.end
+        if not 0.0 <= lo <= hi <= L + 1e-9:
+            raise AnalysisError(
+                f"UDL on member {u.member_id!r}: start/end ({lo:g}, {hi:g}) must satisfy 0 <= start <= end <= length ({L:g})."
+            )
+    if not model.members:
+        raise AnalysisError("The model has no members.")
+    if not model.supports:
+        raise AnalysisError("The model has no supports -- it would float freely.")
+
+
 def solve(model: FrameModel) -> FrameResults:
+    validate(model)
     node_ids = model.node_order()
     n_dof = len(node_ids) * _DOF_PER_NODE
     K = np.zeros((n_dof, n_dof))

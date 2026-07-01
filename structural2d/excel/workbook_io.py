@@ -14,9 +14,12 @@ import io
 from typing import Any
 
 from ..model import FrameModel, MemberPointLoad, MemberUDL, NodalLoad, Support
+from ..sections import section_lookup
 from ..solver import FrameResults
 
 INPUT_SHEETS = ["Nodes", "Members", "Supports", "NodalLoads", "PointLoads", "UDLs"]
+# Optional sheets: absent in workbooks built before the feature existed.
+OPTIONAL_INPUT_SHEETS = ["Sections"]
 
 
 def _to_bool(v: Any) -> bool:
@@ -50,19 +53,52 @@ def _support_from_type(node_id: str, type_name: str) -> Support:
     raise ValueError(f"Unknown support type {type_name!r} for node {node_id!r}")
 
 
+def _sections_from_rows(rows: list[list[Any]]) -> dict[str, tuple[float, float, float]]:
+    """{name: (E, A, I)} from the Sections sheet; the built-in catalog is the
+    fallback so old workbooks without the sheet still resolve section names."""
+    table = section_lookup()
+    for row in _data_rows(rows):
+        name = str(row[0]).strip()
+        if name:
+            table[name] = (float(row[1]), float(row[2]), float(row[3]))
+    return table
+
+
 def model_from_sheet_rows(sheets: dict[str, list[list[Any]]]) -> FrameModel:
     """Build a FrameModel from {sheet_name: rows_including_header}."""
     model = FrameModel()
+    sections = _sections_from_rows(sheets.get("Sections", [[]]))
 
     for row in _data_rows(sheets.get("Nodes", [[]])):
         node_id, x, y = row[0], row[1], row[2]
         model.add_node(str(node_id), float(x), float(y))
 
-    for row in _data_rows(sheets.get("Members", [[]])):
-        member_id, node_i, node_j, E, A, I = row[0], row[1], row[2], row[3], row[4], row[5]
-        hinge_i = _to_bool(row[6]) if len(row) > 6 else False
-        hinge_j = _to_bool(row[7]) if len(row) > 7 else False
-        model.add_member(str(member_id), str(node_i), str(node_j), float(E), float(A), float(I), hinge_i, hinge_j)
+    member_rows = sheets.get("Members", [[]])
+    header = [str(h).strip().lower() if h is not None else "" for h in (member_rows[0] or [])]
+    has_section_col = "section" in header
+    off = 1 if has_section_col else 0  # E/A/I/hinges shift right by one
+    for row in _data_rows(member_rows):
+        member_id, node_i, node_j = str(row[0]), str(row[1]), str(row[2])
+        section = str(row[3]).strip() if has_section_col and len(row) > 3 and row[3] not in (None, "") else ""
+        e_cell = row[3 + off] if len(row) > 3 + off else None
+        if e_cell in (None, ""):
+            # E left blank -> all three properties come from the section pick
+            if not section:
+                raise ValueError(
+                    f"Member {member_id!r}: give E/A/I, or pick a section "
+                    "from the dropdown and leave E/A/I blank."
+                )
+            if section not in sections:
+                raise ValueError(
+                    f"Member {member_id!r}: section {section!r} is not on the "
+                    "Sections sheet."
+                )
+            E, A, I = sections[section]
+        else:
+            E, A, I = float(e_cell), float(row[4 + off]), float(row[5 + off])
+        hinge_i = _to_bool(row[6 + off]) if len(row) > 6 + off else False
+        hinge_j = _to_bool(row[7 + off]) if len(row) > 7 + off else False
+        model.add_member(member_id, node_i, node_j, E, A, I, hinge_i, hinge_j)
 
     for row in _data_rows(sheets.get("Supports", [[]])):
         node_id, type_name = row[0], row[1]
@@ -103,6 +139,28 @@ def displacement_rows(model: FrameModel, results: FrameResults) -> list[list[Any
     return [[node_id, *results.displacements[node_id]] for node_id in model.node_order()]
 
 
+SUMMARY_HEADERS = ["member_id", "max_abs_N", "max_abs_V", "max_abs_M", "max_abs_deflection"]
+
+
+def summary_rows(model: FrameModel, results: FrameResults, n: int = 100) -> list[list[Any]]:
+    """Per-member envelope: max |N|, |V|, |M|, and |local deflection|."""
+    import numpy as np
+
+    from ..diagrams import sample_member
+
+    rows = []
+    for mid in model.members:
+        s = sample_member(model, results, mid, n=n)
+        rows.append([
+            mid,
+            float(np.abs(s["N"]).max()),
+            float(np.abs(s["V"]).max()),
+            float(np.abs(s["M"]).max()),
+            float(np.abs(s["deflection"]).max()),
+        ])
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # openpyxl adapter (headless-testable)
 # ---------------------------------------------------------------------------
@@ -113,6 +171,9 @@ def read_model_openpyxl(wb) -> FrameModel:
     for name in INPUT_SHEETS:
         ws = wb[name]
         sheets[name] = [list(row) for row in ws.iter_rows(values_only=True)]
+    for name in OPTIONAL_INPUT_SHEETS:
+        if name in wb.sheetnames:
+            sheets[name] = [list(row) for row in wb[name].iter_rows(values_only=True)]
     return model_from_sheet_rows(sheets)
 
 
@@ -123,6 +184,9 @@ def write_results_openpyxl(wb, model: FrameModel, results: FrameResults, n: int 
 
     _write_table(wb["Reactions"], ["node_id", "Rx", "Ry", "Rm"], reaction_rows(model, results))
     _write_table(wb["Displacements"], ["node_id", "Ux", "Uy", "Rz"], displacement_rows(model, results))
+    if "Summary" not in wb.sheetnames:  # workbooks built before the Summary sheet existed
+        wb.create_sheet("Summary")
+    _write_table(wb["Summary"], SUMMARY_HEADERS, summary_rows(model, results, n=n))
 
     ws = wb["Diagrams"]
     for row in list(ws.rows):
@@ -159,7 +223,8 @@ def _write_table(ws, headers: list[str], rows: list[list[Any]]) -> None:
 
 def read_model_xlwings(book) -> FrameModel:
     sheets = {}
-    for name in INPUT_SHEETS:
+    sheet_names = [s.name for s in book.sheets]
+    for name in INPUT_SHEETS + [n for n in OPTIONAL_INPUT_SHEETS if n in sheet_names]:
         sheets[name] = book.sheets[name].used_range.value or []
         if sheets[name] and not isinstance(sheets[name][0], list):
             sheets[name] = [sheets[name]]
@@ -176,6 +241,13 @@ def write_results_xlwings(book, model: FrameModel, results: FrameResults, n: int
     displacements_sheet = book.sheets["Displacements"]
     displacements_sheet.clear_contents()
     displacements_sheet.range("A1").value = [["node_id", "Ux", "Uy", "Rz"]] + displacement_rows(model, results)
+
+    sheet_names = [s.name for s in book.sheets]
+    if "Summary" not in sheet_names:  # workbooks built before the Summary sheet existed
+        book.sheets.add("Summary", after=book.sheets["Displacements"])
+    summary_sheet = book.sheets["Summary"]
+    summary_sheet.clear_contents()
+    summary_sheet.range("A1").value = [SUMMARY_HEADERS] + summary_rows(model, results, n=n)
 
     diagrams_sheet = book.sheets["Diagrams"]
     for picture in list(diagrams_sheet.pictures):

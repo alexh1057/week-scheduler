@@ -52,29 +52,32 @@ def _base_fig(d,title,show_loads=True):
         _dsup(ax,d["nodes"][nid][0],d["nodes"][nid][1],s,sz)
     if show_loads:
         AL=ext*_LF
-        for l in d["nlx"]:
-            nx,ny=d["nodes"][l["nid"]]
-            _farrow(ax,nx,ny,l["fx"],l["fy"],AL,f"{math.hypot(l['fx'],l['fy']):.3g}")
-            _marrow(ax,nx,ny,l["m"],AL*.5,f"{l['m']:.3g}")
-        for p in d["plx"]:
-            m=d["members"][p["mid"]];ni=d["nodes"][m["ni"]];nj=d["nodes"][m["nj"]]
+        # nlx rows: (node_id, fx, fy, m)
+        for nid,fx,fy,m2 in d["nlx"]:
+            nx,ny=d["nodes"][nid]
+            _farrow(ax,nx,ny,fx,fy,AL,f"{math.hypot(fx,fy):.3g}")
+            _marrow(ax,nx,ny,m2,AL*.5,f"{m2:.3g}")
+        # plx rows: (member_id, position, fx, fy, m, frame)
+        for mid,pos,pfx,pfy,pm,pfr in d["plx"]:
+            m=d["members"][mid];ni=d["nodes"][m["ni"]];nj=d["nodes"][m["nj"]]
             ang=math.atan2(nj[1]-ni[1],nj[0]-ni[0])
-            px=ni[0]+math.cos(ang)*p["pos"];py=ni[1]+math.sin(ang)*p["pos"]
-            if p["fr"]=="global":gx,gy=p["fx"],p["fy"]
-            else:c,s=math.cos(ang),math.sin(ang);gx,gy=c*p["fx"]-s*p["fy"],s*p["fx"]+c*p["fy"]
+            px=ni[0]+math.cos(ang)*pos;py=ni[1]+math.sin(ang)*pos
+            if pfr=="global":gx,gy=pfx,pfy
+            else:c,s=math.cos(ang),math.sin(ang);gx,gy=c*pfx-s*pfy,s*pfx+c*pfy
             _farrow(ax,px,py,gx,gy,AL,f"{math.hypot(gx,gy):.3g}")
-            _marrow(ax,px,py,p["m"],AL*.5,f"{p['m']:.3g}")
-        for u in d["ulx"]:
-            m=d["members"][u["mid"]];ni=d["nodes"][m["ni"]];nj=d["nodes"][m["nj"]]
+            _marrow(ax,px,py,pm,AL*.5,f"{pm:.3g}")
+        # ulx rows: (member_id, start, end, wx, wy, frame)
+        for mid,lo,hi,uwx,uwy,ufr in d["ulx"]:
+            m=d["members"][mid];ni=d["nodes"][m["ni"]];nj=d["nodes"][m["nj"]]
             ang=math.atan2(nj[1]-ni[1],nj[0]-ni[0]);L=math.hypot(nj[0]-ni[0],nj[1]-ni[1])
-            if u["fr"]=="global":gx,gy=u["wx"],u["wy"]
-            else:c,s=math.cos(ang),math.sin(ang);gx,gy=c*u["wx"]-s*u["wy"],s*u["wx"]+c*u["wy"]
+            if ufr=="global":gx,gy=uwx,uwy
+            else:c,s=math.cos(ang),math.sin(ang);gx,gy=c*uwx-s*uwy,s*uwx+c*uwy
             mg=math.hypot(gx,gy)
             if mg<1e-12:continue
             ux2,uy2=gx/mg,gy/mg;sl=AL*.6
-            na=max(int((u["hi"]-u["lo"])/max(L,1e-9)*8),3)
+            na=max(int((hi-lo)/max(L,1e-9)*8),3)
             txs,tys=[],[]
-            for pos in np.linspace(u["lo"],u["hi"],na):
+            for pos in np.linspace(lo,hi,na):
                 x=ni[0]+math.cos(ang)*pos;y=ni[1]+math.sin(ang)*pos
                 ax.annotate("",xy=(x,y),xytext=(x-ux2*sl,y-uy2*sl),arrowprops=dict(arrowstyle="-|>",color="steelblue",lw=1.),zorder=4)
                 txs.append(x-ux2*sl);tys.append(y-uy2*sl)

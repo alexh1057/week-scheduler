@@ -19,13 +19,20 @@ from __future__ import annotations
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
+from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.worksheet import Worksheet
 
+from ..sections import SECTION_HEADERS, SECTIONS
+
 SUPPORT_TYPES = ["Fixed", "Pinned", "Roller X", "Roller Y"]
 LOAD_FRAMES = ["local", "global"]
 BOOL_CHOICES = ["TRUE", "FALSE"]
+
+# Rows the section-name dropdown scans on the Sections sheet: the built-in
+# catalog plus headroom for user-added sections.
+SECTION_DROPDOWN_ROWS = 100
 
 
 def _add_table(ws: Worksheet, name: str, headers: list[str], rows: list[list] | None, blank_rows: int = 0) -> None:
@@ -61,10 +68,24 @@ def _build_nodes(wb: Workbook) -> None:
 
 def _build_members(wb: Workbook) -> None:
     ws = wb.create_sheet("Members")
-    _add_table(ws, "Members", ["id", "node_i", "node_j", "E", "A", "I", "hinge_i", "hinge_j"],
-               [["m1", "1", "2", 200e9, 0.01, 8e-5, "FALSE", "FALSE"]])
-    _add_list_validation(ws, "G", BOOL_CHOICES)
+    _add_table(ws, "Members", ["id", "node_i", "node_j", "section", "E", "A", "I", "hinge_i", "hinge_j"],
+               [["m1", "1", "2", None, 200e9, 0.01, 8e-5, "FALSE", "FALSE"]])
+    dv = DataValidation(type="list", formula1="=SectionNames", allow_blank=True)
+    ws.add_data_validation(dv)
+    dv.add("D2:D201")
     _add_list_validation(ws, "H", BOOL_CHOICES)
+    _add_list_validation(ws, "I", BOOL_CHOICES)
+
+
+def _build_sections(wb: Workbook) -> None:
+    ws = wb.create_sheet("Sections")
+    _add_table(ws, "Sections", SECTION_HEADERS, [list(row) for row in SECTIONS])
+    ws["F1"] = (
+        "UK UB/UC sections, major-axis I, steel E=210e9 (SI units: Pa, m2, m4). "
+        "Indicative values -- verify against current section tables for design "
+        "use. Add your own rows; the Members dropdown picks them up."
+    )
+    ws.column_dimensions["F"].width = 110
 
 
 def _build_supports(wb: Workbook) -> None:
@@ -114,6 +135,13 @@ def _build_displacements(wb: Workbook) -> None:
     ws["A1"].font = Font(bold=True)
 
 
+def _build_summary(wb: Workbook) -> None:
+    ws = wb.create_sheet("Summary")
+    ws.column_dimensions["A"].width = 90
+    ws["A1"] = 'One-time setup: click A1, Insert Python, type: xl("Engine!B2")["summary"]  -- then set this cell\'s output to Excel Value. Gives per-member max |N|, |V|, |M|, |deflection|.'
+    ws["A1"].font = Font(bold=True)
+
+
 def _build_diagrams(wb: Workbook) -> None:
     ws = wb.create_sheet("Diagrams")
     ws.column_dimensions["A"].width = 90
@@ -149,7 +177,7 @@ def _build_instructions(wb: Workbook) -> None:
         "  3. Open structural2d/pyexcel/engine_solver.py from the project and paste "
         "its ENTIRE contents into the cell.",
         "  4. On new lines at the end of that same cell, add:",
-        '       _r=run(xl("Nodes"),xl("Members"),xl("Supports"),xl("NodalLoads"),xl("PointLoads"),xl("UDLs"));_r',
+        '       _r=run(xl("Nodes"),xl("Members"),xl("Supports"),xl("NodalLoads"),xl("PointLoads"),xl("UDLs"),xl("Sections"));_r',
         "     (the semicolon + bare name at the end makes the cell return the result).",
         "  5. Ctrl+Enter to run it. Leave this cell's Python output as a Python "
         "object (not Excel Value) -- the plotter cell reads the object itself.",
@@ -165,11 +193,13 @@ def _build_instructions(wb: Workbook) -> None:
         '        xl("Engine!B2")["reactions"]',
         "      then switch that cell's output to Excel Value so it spills as a table.",
         "  11. Displacements tab, cell A1: same, with [\"displacements\"] instead.",
-        "  12. Diagrams tab: B2 -> xl(\"Engine!B4\")[\"geometry_fig\"], "
+        "  12. Summary tab, cell A1: same, with [\"summary\"] -- per-member max "
+        "|N|, |V|, |M|, |deflection|.",
+        "  13. Diagrams tab: B2 -> xl(\"Engine!B4\")[\"geometry_fig\"], "
         "B20 -> xl(\"Engine!B4\")[\"deformed_fig\"]. For a member's N/V/M diagram, "
         "put its id in B39 and in B40 use xl(\"Engine!B4\")[\"member_fig\"](xl(\"B39\")). "
         "Figures display as images automatically.",
-        "  13. Save the workbook.",
+        "  14. Save the workbook.",
         "",
         "Day to day after setup",
         "  Edit the input tabs and press Ctrl+Alt+F9 (recalculate) -- everything "
@@ -194,9 +224,14 @@ def _build_instructions(wb: Workbook) -> None:
         "",
         "Input sheets (same column meanings as the xlwings version)",
         "  Nodes        -- id, x, y",
-        "  Members      -- id, node_i, node_j, E (modulus), A (area), I (moment of "
-        "inertia), hinge_i/hinge_j (TRUE releases that end's moment connection, "
-        "e.g. for truss bars)",
+        "  Members      -- id, node_i, node_j, section, E, A, I, hinge_i/hinge_j. "
+        "EITHER pick a section from the dropdown and leave E/A/I blank (properties "
+        "come from the Sections sheet), OR leave section blank and type E "
+        "(modulus), A (area), I (moment of inertia) yourself. hinge_i/hinge_j "
+        "TRUE releases that end's moment connection, e.g. for truss bars.",
+        "  Sections     -- name, E, A, I: the catalog behind the Members dropdown. "
+        "Ships with common UK UB/UC steel sections (SI units, indicative values -- "
+        "verify for design use). Add rows for your own sections.",
         "  Supports     -- node_id, type (Fixed / Pinned / Roller X / Roller Y)",
         "  NodalLoads   -- node_id, fx, fy, m (force/moment applied directly at a node)",
         "  PointLoads   -- member_id, position (distance from node_i), fx, fy, m, "
@@ -223,6 +258,7 @@ def build_pyexcel_template(path: str) -> None:
     _build_instructions(wb)
     _build_nodes(wb)
     _build_members(wb)
+    _build_sections(wb)
     _build_supports(wb)
     _build_nodal_loads(wb)
     _build_point_loads(wb)
@@ -230,7 +266,11 @@ def build_pyexcel_template(path: str) -> None:
     _build_engine(wb)
     _build_reactions(wb)
     _build_displacements(wb)
+    _build_summary(wb)
     _build_diagrams(wb)
+    wb.defined_names.add(
+        DefinedName("SectionNames", attr_text=f"Sections!$A$2:$A${SECTION_DROPDOWN_ROWS + 1}")
+    )
     wb.save(path)
 
 

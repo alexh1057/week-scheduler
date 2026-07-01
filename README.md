@@ -21,6 +21,10 @@ reactions, displacements, and N/V/M/deflection diagrams.
 
 - `structural2d/model.py` -- the data model: `FrameModel` (nodes, members,
   supports, loads).
+- `structural2d/sections.py` -- the standard-section catalog (UK UB/UC steel
+  sections) behind the Members sheet's section dropdown in both workbooks.
+  Values are indicative -- verify against current section tables (SCI Blue
+  Book) before design use.
 - `structural2d/solver.py` -- the direct stiffness solver (`solve(model) ->
   FrameResults`).
 - `structural2d/diagrams.py` -- closed-form N/V/M and deflection sampling
@@ -44,11 +48,10 @@ reactions, displacements, and N/V/M/deflection diagrams.
   python -m structural2d.excel.build_template frame_model.xlsx
   ```
 
-- `structural2d/pyexcel/engine.py` -- the original self-contained Python-in-Excel
-  engine (kept for the test suite). Too large for Excel's 8,192-character
-  per-cell limit; replaced in practice by the two files below.
 - `structural2d/pyexcel/engine_solver.py` -- solver half for Python in Excel:
-  direct stiffness math, no matplotlib. Paste into Engine!B2 (< 8,192 chars).
+  direct stiffness math, no matplotlib. Paste into Engine!B2. Kept under
+  Excel's hard 8,192-character per-cell limit (including the appended run()
+  line), which is why the code is written so densely.
 - `structural2d/pyexcel/engine_plotter.py` -- plotter half: matplotlib figures
   only, takes the solver cell's output. Paste into Engine!B4 (< 8,192 chars).
 - `structural2d/excel/build_pyexcel_template.py` -- scaffolds
@@ -145,7 +148,7 @@ with it.
    into the cell.
 4. On a new line at the end of that same cell, add:
    ```
-   _r=run(xl("Nodes"),xl("Members"),xl("Supports"),xl("NodalLoads"),xl("PointLoads"),xl("UDLs"));_r
+   _r=run(xl("Nodes"),xl("Members"),xl("Supports"),xl("NodalLoads"),xl("PointLoads"),xl("UDLs"),xl("Sections"));_r
    ```
 5. Ctrl+Enter. Leave this cell's output as a Python object (not "Excel
    Value") -- the plotter cell reads the object directly.
@@ -166,12 +169,14 @@ with it.
 10. `Reactions` tab, cell `A1`: Insert Python, type `xl("Engine!B2")["reactions"]`,
     then switch that cell's output to Excel Value so it spills as a table.
 11. `Displacements` tab, cell `A1`: same, with `["displacements"]`.
-12. `Diagrams` tab: `B2` -> `xl("Engine!B4")["geometry_fig"]`,
+12. `Summary` tab, cell `A1`: same, with `["summary"]` -- per-member max
+    |N|, |V|, |M|, |deflection|.
+13. `Diagrams` tab: `B2` -> `xl("Engine!B4")["geometry_fig"]`,
     `B20` -> `xl("Engine!B4")["deformed_fig"]`. For a member's N/V/M diagram,
     put its id in `B39` and in `B40` use
     `xl("Engine!B4")["member_fig"](xl("B39"))`. Figures display as images
     automatically.
-13. Save.
+14. Save.
 
 **Day to day after setup:** edit the input tabs and press Ctrl+Alt+F9
 (recalculate) -- everything downstream updates automatically. No re-pasting.
@@ -202,11 +207,16 @@ m, Pa) and use it across every sheet.
 | Sheet | Columns | Notes |
 |---|---|---|
 | `Nodes` | `id, x, y` | |
-| `Members` | `id, node_i, node_j, E, A, I, hinge_i, hinge_j` | `E` modulus, `A` area, `I` moment of inertia. `hinge_i`/`hinge_j` (`TRUE`/`FALSE`) release that end's moment connection -- set both `TRUE` for a truss bar. |
+| `Members` | `id, node_i, node_j, section, E, A, I, hinge_i, hinge_j` | EITHER pick a `section` from the dropdown and leave `E`/`A`/`I` blank (properties come from the Sections sheet), OR leave `section` blank and type `E` (modulus), `A` (area), `I` (moment of inertia) yourself. Typed values win over the section pick. `hinge_i`/`hinge_j` (`TRUE`/`FALSE`) release that end's moment connection -- set both `TRUE` for a truss bar. |
+| `Sections` | `name, E, A, I` | The catalog behind the Members dropdown. Ships with common UK UB/UC steel sections (SI units, E=210 GPa, major-axis I; indicative values -- verify for design use). Add rows for your own sections. |
 | `Supports` | `node_id, type` | `type` is one of `Fixed`, `Pinned`, `Roller X`, `Roller Y`. |
 | `NodalLoads` | `node_id, fx, fy, m` | Force/moment applied directly at a node. |
 | `PointLoads` | `member_id, position, fx, fy, m, frame` | `position` is measured from `node_i`. `frame` is `local` (along the member axis) or `global` (along X/Y). |
 | `UDLs` | `member_id, wx, wy, frame, start, end` | Force-per-length. `start`/`end` (measured from `node_i`) may be left blank to cover the full member. |
+
+Typos are caught early with readable messages: unknown node/member/section
+references, load positions outside a member, and missing supports all raise
+a plain-English error instead of a bare `KeyError`.
 
 ## Output sheets
 
@@ -214,6 +224,7 @@ m, Pa) and use it across every sheet.
 |---|---|
 | `Reactions` | `node_id, Rx, Ry, Rm` for each supported node. |
 | `Displacements` | `node_id, Ux, Uy, Rz` for every node. |
+| `Summary` | Per-member envelope: max \|N\|, \|V\|, \|M\|, and \|local deflection\|. |
 | `Diagrams` | Embedded matplotlib images: geometry/load diagram, deformed shape, and one N/V/M diagram per member. |
 
 ## Tests
@@ -225,9 +236,9 @@ python -m pytest tests/
 `tests/test_solver.py` checks the engine against textbook closed-form
 solutions (simply supported beams, cantilevers, portal frames, trusses).
 `tests/test_workbook_io.py` round-trips the openpyxl template builder and
-read/write adapters end-to-end (build → read → solve → write → reload).
-`tests/test_pyexcel_engine.py` checks the original `structural2d/pyexcel/engine.py`
-and `tests/test_pyexcel_split_engine.py` checks the two-cell split
-(`engine_solver.py` + `engine_plotter.py`), all using pandas DataFrames in
-place of `xl(...)` results -- the one thing they can't cover is real Excel
+read/write adapters end-to-end (build → read → solve → write → reload),
+including the section-dropdown lookup and the Summary sheet.
+`tests/test_pyexcel_split_engine.py` checks the two-cell split
+(`engine_solver.py` + `engine_plotter.py`) using pandas DataFrames in
+place of `xl(...)` results -- the one thing it can't cover is real Excel
 itself (see the caveat under Option B).

@@ -7,6 +7,7 @@ import math
 import importlib.util, pathlib
 
 import pandas as pd
+import pytest
 
 # Load the modules from their source files (they're not importable as a
 # package since they're meant to be pasted verbatim into Excel cells)
@@ -111,3 +112,73 @@ def test_plotter_with_nodal_and_udl_loads():
     d = solver.run(nodes, members, supports, nodal_loads, point_loads, udls)
     out = plotter.run(d)
     assert out["geometry_fig"] is not None
+
+
+MEMBER_COLS = ["id", "node_i", "node_j", "section", "E", "A", "I", "hinge_i", "hinge_j"]
+SECTION_ROWS = pd.DataFrame(
+    [["305x165x40 UB", 210e9, 51.3e-4, 8503e-8]], columns=["name", "E", "A", "I"]
+)
+
+
+def _ssb_with_section(section, E=None, A=None, I=None):
+    """Same beam, but with the new section-column Members layout."""
+    nodes, _, supports, nodal_loads, point_loads, udls = _ssb_tables()
+    members = pd.DataFrame(
+        [["m1", "1", "2", section, E, A, I, "FALSE", "FALSE"]], columns=MEMBER_COLS
+    )
+    return nodes, members, supports, nodal_loads, point_loads, udls, SECTION_ROWS
+
+
+def test_section_pick_fills_blank_EAI():
+    result = solver.run(*_ssb_with_section("305x165x40 UB"))
+    m = result["members"]["m1"]
+    assert m["E"] == 210e9 and m["A"] == 51.3e-4 and m["I"] == 8503e-8
+    # and the model actually solves with those properties
+    rx = result["reactions"].set_index("node_id")
+    assert math.isclose(rx.loc["1", "Ry"], 5000.0, rel_tol=1e-9)
+
+
+def test_typed_EAI_overrides_section_pick():
+    result = solver.run(*_ssb_with_section("305x165x40 UB", E=200e9, A=0.01, I=8e-5))
+    m = result["members"]["m1"]
+    assert m["E"] == 200e9 and m["A"] == 0.01 and m["I"] == 8e-5
+
+
+def test_unknown_section_raises_friendly_error():
+    with pytest.raises(RuntimeError, match="unknown section"):
+        solver.run(*_ssb_with_section("999x999x9 UB"))
+
+
+def test_blank_section_and_blank_EAI_raises_friendly_error():
+    with pytest.raises(RuntimeError, match="pick a section or fill in E/A/I"):
+        solver.run(*_ssb_with_section(None))
+
+
+def test_unknown_node_reference_raises_friendly_error():
+    nodes, members, supports, nodal_loads, point_loads, udls = _ssb_tables()
+    members = pd.DataFrame(
+        [["m1", "1", "99", 200e9, 0.01, 8e-5, "FALSE", "FALSE"]],
+        columns=["id", "node_i", "node_j", "E", "A", "I", "hinge_i", "hinge_j"],
+    )
+    with pytest.raises(RuntimeError, match="unknown node"):
+        solver.run(nodes, members, supports, nodal_loads, point_loads, udls)
+
+
+def test_unknown_member_on_load_raises_friendly_error():
+    nodes, members, supports, nodal_loads, point_loads, udls = _ssb_tables()
+    point_loads = pd.DataFrame(
+        [["m99", 3.0, 0.0, -10000.0, 0.0, "local"]],
+        columns=["member_id", "position", "fx", "fy", "m", "frame"],
+    )
+    with pytest.raises(RuntimeError, match="unknown member"):
+        solver.run(nodes, members, supports, nodal_loads, point_loads, udls)
+
+
+def test_summary_matches_closed_form():
+    result = solver.run(*_ssb_tables())
+    s = result["summary"].set_index("member_id")
+    P, L, E, I = 10_000.0, 6.0, 200e9, 8e-5
+    assert math.isclose(s.loc["m1", "max_abs_V"], P / 2, rel_tol=1e-6)
+    assert math.isclose(s.loc["m1", "max_abs_M"], P * L / 4, rel_tol=1e-6)
+    # midspan deflection P*L^3 / (48*E*I)
+    assert math.isclose(s.loc["m1", "max_abs_deflection"], P * L**3 / (48 * E * I), rel_tol=1e-3)
