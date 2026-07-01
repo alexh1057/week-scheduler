@@ -10,8 +10,10 @@ feature needs for a "=PY(...)" formula to actually execute, so the six
 input sheets are real, usable Excel Tables (named to match the xl("...")
 calls the pasted code uses) but the Engine/Reactions/Displacements/Diagrams
 sheets are left as instructions -- seeing this workbook run requires a
-one-time manual paste of structural2d/pyexcel/engine.py into an Insert
-Python cell, documented on the Instructions sheet and in the README.
+one-time manual paste into two Insert Python cells:
+  Engine!B2: engine_solver.py (math only, < 8192 chars)
+  Engine!B4: engine_plotter.py (matplotlib, < 8192 chars)
+Both are documented on the Instructions sheet and in the README.
 """
 from __future__ import annotations
 
@@ -92,8 +94,10 @@ def _build_udls(wb: Workbook) -> None:
 def _build_engine(wb: Workbook) -> None:
     ws = wb.create_sheet("Engine")
     ws.column_dimensions["A"].width = 90
-    ws["A1"] = "One-time setup: click B2, Formulas -> Insert Python, paste structural2d/pyexcel/engine.py (see Instructions), Ctrl+Enter."
+    ws["A1"] = "Cell B2 (solver): Insert Python, paste engine_solver.py, append the run() call (see Instructions), Ctrl+Enter."
+    ws["A3"] = "Cell B4 (plotter): Insert Python, paste engine_plotter.py, append the run() call (see Instructions), Ctrl+Enter."
     ws["A1"].font = Font(bold=True)
+    ws["A3"].font = Font(bold=True)
 
 
 def _build_reactions(wb: Workbook) -> None:
@@ -113,9 +117,9 @@ def _build_displacements(wb: Workbook) -> None:
 def _build_diagrams(wb: Workbook) -> None:
     ws = wb.create_sheet("Diagrams")
     ws.column_dimensions["A"].width = 90
-    ws["A1"] = 'One-time setup, geometry diagram: click B2, Insert Python, type: xl("Engine!B2")["geometry_fig"]'
-    ws["A2"] = 'Deformed shape: click B20, Insert Python, type: xl("Engine!B2")["deformed_fig"]'
-    ws["A3"] = 'Per-member N/V/M: put a member id (e.g. m1) in B39, then in B40, Insert Python: xl("Engine!B2")["member_fig"](xl("B39"))'
+    ws["A1"] = 'One-time setup, geometry diagram: click B2, Insert Python, type: xl("Engine!B4")["geometry_fig"]'
+    ws["A2"] = 'Deformed shape: click B20, Insert Python, type: xl("Engine!B4")["deformed_fig"]'
+    ws["A3"] = 'Per-member N/V/M: put a member id (e.g. m1) in B39, then in B40, Insert Python: xl("Engine!B4")["member_fig"](xl("B39"))'
     ws["A1"].font = ws["A2"].font = ws["A3"].font = Font(bold=True)
 
 
@@ -140,26 +144,32 @@ def _build_instructions(wb: Workbook) -> None:
         "workbook from then on)",
         "  1. Fill in your structure on the Nodes/Members/Supports/NodalLoads/"
         "PointLoads/UDLs tabs (sample data is a simply supported beam -- replace it).",
+        "  ---- Solver cell (Engine!B2) ----",
         "  2. Go to the Engine tab, click cell B2. Formulas tab -> Insert Python.",
-        "  3. Open structural2d/pyexcel/engine.py from the project and paste its "
-        "ENTIRE contents into the cell.",
+        "  3. Open structural2d/pyexcel/engine_solver.py from the project and paste "
+        "its ENTIRE contents into the cell.",
         "  4. On new lines at the end of that same cell, add:",
-        '       _engine_result = run(xl("Nodes"), xl("Members"), xl("Supports"), '
-        'xl("NodalLoads"), xl("PointLoads"), xl("UDLs"))',
-        "       _engine_result",
-        "     (the bare name on the last line is what makes the cell return it).",
+        '       _r=run(xl("Nodes"),xl("Members"),xl("Supports"),xl("NodalLoads"),xl("PointLoads"),xl("UDLs"));_r',
+        "     (the semicolon + bare name at the end makes the cell return the result).",
         "  5. Ctrl+Enter to run it. Leave this cell's Python output as a Python "
-        "object (not Excel Value) -- other cells need to reference the object itself.",
-        "  6. Reactions tab, cell A1: Insert Python, type:",
-        '       xl("Engine!B2")["reactions"]',
-        "     then switch that cell's output to Excel Value so it spills as a normal table.",
-        "  7. Displacements tab, cell A1: same, with [\"displacements\"] instead.",
-        "  8. Diagrams tab: B2 -> xl(\"Engine!B2\")[\"geometry_fig\"], "
-        "B20 -> xl(\"Engine!B2\")[\"deformed_fig\"]. For a specific member's N/V/M "
-        "diagram, put its id in B39 and in B40 use "
-        "xl(\"Engine!B2\")[\"member_fig\"](xl(\"B39\")). Figures display as images "
-        "automatically -- no output-type change needed for those.",
-        "  9. Save the workbook.",
+        "object (not Excel Value) -- the plotter cell reads the object itself.",
+        "  ---- Plotter cell (Engine!B4) ----",
+        "  6. Click cell B4. Formulas tab -> Insert Python.",
+        "  7. Open structural2d/pyexcel/engine_plotter.py and paste its ENTIRE "
+        "contents into the cell.",
+        "  8. On new lines at the end of that same cell, add:",
+        '       _r=run(xl("Engine!B2"));_r',
+        "  9. Ctrl+Enter to run it. Leave this cell's output as a Python object too.",
+        "  ---- Output cells ----",
+        "  10. Reactions tab, cell A1: Insert Python, type:",
+        '        xl("Engine!B2")["reactions"]',
+        "      then switch that cell's output to Excel Value so it spills as a table.",
+        "  11. Displacements tab, cell A1: same, with [\"displacements\"] instead.",
+        "  12. Diagrams tab: B2 -> xl(\"Engine!B4\")[\"geometry_fig\"], "
+        "B20 -> xl(\"Engine!B4\")[\"deformed_fig\"]. For a member's N/V/M diagram, "
+        "put its id in B39 and in B40 use xl(\"Engine!B4\")[\"member_fig\"](xl(\"B39\")). "
+        "Figures display as images automatically.",
+        "  13. Save the workbook.",
         "",
         "Day to day after setup",
         "  Edit the input tabs and press Ctrl+Alt+F9 (recalculate) -- everything "
@@ -174,12 +184,13 @@ def _build_instructions(wb: Workbook) -> None:
         "formulas won't run until they click 'Enable Editing'.",
         "",
         "Caveat",
-        "  This template was built and engine.py was validated against the same "
-        "closed-form test cases as the rest of this project, but the cross-cell "
-        "steps above (referencing another cell's returned Python object, a "
-        "matplotlib Figure rendering when returned that way) follow Microsoft's "
-        "documented Python-in-Excel pattern but could not be exercised in real "
-        "Excel here -- there's no Excel available in this environment.",
+        "  engine_solver.py and engine_plotter.py are validated against the same "
+        "closed-form test cases as the rest of this project (see "
+        "tests/test_pyexcel_split_engine.py). The cross-cell steps above -- "
+        "referencing another cell's returned Python object via xl(\"Engine!B2\"), "
+        "and a matplotlib Figure rendering as an image when returned that way -- "
+        "follow Microsoft's documented Python-in-Excel pattern but could not be "
+        "exercised in real Excel here (no Excel in this environment).",
         "",
         "Input sheets (same column meanings as the xlwings version)",
         "  Nodes        -- id, x, y",

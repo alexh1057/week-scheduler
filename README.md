@@ -44,10 +44,13 @@ reactions, displacements, and N/V/M/deflection diagrams.
   python -m structural2d.excel.build_template frame_model.xlsx
   ```
 
-- `structural2d/pyexcel/engine.py` -- the Python-in-Excel variant of the
-  engine: `model.py` + `solver.py` + `diagrams.py` + `plotting.py` flattened
-  into one dependency-light, no-relative-import file, because that's what
-  Excel's "Insert Python" cell editor requires (see Option B below).
+- `structural2d/pyexcel/engine.py` -- the original self-contained Python-in-Excel
+  engine (kept for the test suite). Too large for Excel's 8,192-character
+  per-cell limit; replaced in practice by the two files below.
+- `structural2d/pyexcel/engine_solver.py` -- solver half for Python in Excel:
+  direct stiffness math, no matplotlib. Paste into Engine!B2 (< 8,192 chars).
+- `structural2d/pyexcel/engine_plotter.py` -- plotter half: matplotlib figures
+  only, takes the solver cell's output. Paste into Engine!B4 (< 8,192 chars).
 - `structural2d/excel/build_pyexcel_template.py` -- scaffolds
   `frame_model_pyexcel.xlsx`: real, named Excel Tables for the six input
   sheets, plus instructional placeholders on the output sheets (openpyxl
@@ -126,29 +129,49 @@ This is a one-time cost: once done and saved, the `.xlsx` carries the code
 with it.
 
 **One-time setup**
+
+> The engine is split across two cells to stay within Excel's 8,192-character
+> per-cell limit. Cell B2 holds the solver (math only); cell B4 holds the
+> plotter (matplotlib).
+
 1. Open `frame_model_pyexcel.xlsx`. Fill in your structure on the Nodes /
    Members / Supports / NodalLoads / PointLoads / UDLs tabs (replace the
    sample simply-supported-beam data).
+
+**Solver cell (Engine!B2)**
+
 2. Go to the `Engine` tab, click cell `B2`. Formulas tab -> Insert Python.
-3. Open `structural2d/pyexcel/engine.py` and paste its entire contents into
-   the cell.
-4. On new lines at the end of that same cell, add:
+3. Open `structural2d/pyexcel/engine_solver.py` and paste its entire contents
+   into the cell.
+4. On a new line at the end of that same cell, add:
    ```
-   _engine_result = run(xl("Nodes"), xl("Members"), xl("Supports"), xl("NodalLoads"), xl("PointLoads"), xl("UDLs"))
-   _engine_result
+   _r=run(xl("Nodes"),xl("Members"),xl("Supports"),xl("NodalLoads"),xl("PointLoads"),xl("UDLs"));_r
    ```
-   (the bare name on the last line is what makes the cell return it).
 5. Ctrl+Enter. Leave this cell's output as a Python object (not "Excel
-   Value") -- other cells need to reference the object itself.
-6. `Reactions` tab, cell `A1`: Insert Python, type `xl("Engine!B2")["reactions"]`,
-   then switch that cell's output to Excel Value so it spills as a table.
-7. `Displacements` tab, cell `A1`: same, with `["displacements"]`.
-8. `Diagrams` tab: `B2` -> `xl("Engine!B2")["geometry_fig"]`,
-   `B20` -> `xl("Engine!B2")["deformed_fig"]`. For a member's N/V/M diagram,
-   put its id in `B39` and in `B40` use
-   `xl("Engine!B2")["member_fig"](xl("B39"))`. Figures display as images
-   automatically.
-9. Save.
+   Value") -- the plotter cell reads the object directly.
+
+**Plotter cell (Engine!B4)**
+
+6. Click cell `B4`. Formulas tab -> Insert Python.
+7. Open `structural2d/pyexcel/engine_plotter.py` and paste its entire contents
+   into the cell.
+8. On a new line at the end, add:
+   ```
+   _r=run(xl("Engine!B2"));_r
+   ```
+9. Ctrl+Enter. Leave this cell's output as a Python object too.
+
+**Output cells**
+
+10. `Reactions` tab, cell `A1`: Insert Python, type `xl("Engine!B2")["reactions"]`,
+    then switch that cell's output to Excel Value so it spills as a table.
+11. `Displacements` tab, cell `A1`: same, with `["displacements"]`.
+12. `Diagrams` tab: `B2` -> `xl("Engine!B4")["geometry_fig"]`,
+    `B20` -> `xl("Engine!B4")["deformed_fig"]`. For a member's N/V/M diagram,
+    put its id in `B39` and in `B40` use
+    `xl("Engine!B4")["member_fig"](xl("B39"))`. Figures display as images
+    automatically.
+13. Save.
 
 **Day to day after setup:** edit the input tabs and press Ctrl+Alt+F9
 (recalculate) -- everything downstream updates automatically. No re-pasting.
@@ -160,9 +183,9 @@ plan, per Requirements above; (b) a workbook that arrives by email/download
 opens in Protected View first, same as a macro-enabled file -- Python
 formulas won't run until the recipient clicks "Enable Editing."
 
-> **Caveat:** `structural2d/pyexcel/engine.py` is validated against the same
-> closed-form test cases as the rest of this project (see
-> `tests/test_pyexcel_engine.py`), entirely headlessly with pandas
+> **Caveat:** `engine_solver.py` and `engine_plotter.py` are validated against
+> the same closed-form test cases as the rest of this project (see
+> `tests/test_pyexcel_split_engine.py`), entirely headlessly with pandas
 > DataFrames standing in for `xl(...)` results. The cross-cell steps above --
 > referencing another cell's returned Python object via `xl("Engine!B2")`,
 > and a matplotlib Figure rendering as an image when returned that way --
@@ -203,7 +226,8 @@ python -m pytest tests/
 solutions (simply supported beams, cantilevers, portal frames, trusses).
 `tests/test_workbook_io.py` round-trips the openpyxl template builder and
 read/write adapters end-to-end (build → read → solve → write → reload).
-`tests/test_pyexcel_engine.py` checks `structural2d/pyexcel/engine.py`
-against the same closed-form numbers, using pandas DataFrames in place of
-`xl(...)` results -- the one thing it can't cover is real Excel itself (see
-the caveat under Option B).
+`tests/test_pyexcel_engine.py` checks the original `structural2d/pyexcel/engine.py`
+and `tests/test_pyexcel_split_engine.py` checks the two-cell split
+(`engine_solver.py` + `engine_plotter.py`), all using pandas DataFrames in
+place of `xl(...)` results -- the one thing they can't cover is real Excel
+itself (see the caveat under Option B).
