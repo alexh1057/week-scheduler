@@ -123,19 +123,26 @@ where xlwings can't be installed.
 
 **Why the workbook can't "just work" out of the box:** openpyxl can write
 real Excel Tables (so `xl("Nodes")` etc. resolve correctly), but there is no
-documented way for openpyxl to author the internal metadata a real `=PY()`
-formula cell needs to execute -- that metadata is only created by Excel
-itself when you type the formula in. So `frame_model_pyexcel.xlsx` ships
-with working input tables and clearly-labeled instructions on the output
-sheets, and setup requires one round of manually pasting code into Excel.
-This is a one-time cost: once done and saved, the `.xlsx` carries the code
-with it.
+documented way to author the internal metadata a real `=PY()` formula cell
+needs to execute -- that metadata lives in Excel's undocumented Rich Value
+infrastructure and is tied to a live binding with Microsoft's cloud execution
+sandbox, not just formula text. It's only created by Excel itself when you
+use Insert Python interactively -- no file-format trick can fake it without
+risking a corrupted workbook. So `frame_model_pyexcel.xlsx` ships with
+working input tables, and the Engine tab's `B2`/`B4` cells are left empty for
+a one-time Insert Python. To make that one-time step as close to zero-effort
+as possible, the *exact* code to paste (source + the trailing `run()` call,
+already combined) is pre-staged in cells `D2`/`D4` of the same sheet -- so
+there's no need to have any project file open at all; everything is already
+inside the workbook. This is a one-time cost: once done and saved, the
+`.xlsx` carries the code with it.
 
 **One-time setup**
 
 > The engine is split across two cells to stay within Excel's 8,192-character
-> per-cell limit. Cell B2 holds the solver (math only); cell B4 holds the
-> plotter (matplotlib).
+> per-cell limit. Cell `B2` holds the solver (math only); cell `B4` holds the
+> plotter (matplotlib). The ready-to-paste text for each is staged in `D2`
+> and `D4`.
 
 1. Open `frame_model_pyexcel.xlsx`. Fill in your structure on the Nodes /
    Members / Supports / NodalLoads / PointLoads / UDLs tabs (replace the
@@ -143,40 +150,34 @@ with it.
 
 **Solver cell (Engine!B2)**
 
-2. Go to the `Engine` tab, click cell `B2`. Formulas tab -> Insert Python.
-3. Open `structural2d/pyexcel/engine_solver.py` and paste its entire contents
-   into the cell.
-4. On a new line at the end of that same cell, add:
-   ```
-   _r=run(xl("Nodes"),xl("Members"),xl("Supports"),xl("NodalLoads"),xl("PointLoads"),xl("UDLs"),xl("Sections"));_r
-   ```
-5. Ctrl+Enter. Leave this cell's output as a Python object (not "Excel
-   Value") -- the plotter cell reads the object directly.
+2. Go to the `Engine` tab. Click cell `D2` once (a single click selects the
+   whole cell -- no need to select the text inside it), then Ctrl+C.
+3. Click cell `B2`. Formulas tab -> Insert Python.
+4. Ctrl+V to paste, then Ctrl+Enter to run it. Leave this cell's output as a
+   Python object (not "Excel Value") -- the plotter cell reads the object
+   directly.
 
 **Plotter cell (Engine!B4)**
 
+5. Click cell `D4` once, then Ctrl+C.
 6. Click cell `B4`. Formulas tab -> Insert Python.
-7. Open `structural2d/pyexcel/engine_plotter.py` and paste its entire contents
-   into the cell.
-8. On a new line at the end, add:
-   ```
-   _r=run(xl("Engine!B2"));_r
-   ```
-9. Ctrl+Enter. Leave this cell's output as a Python object too.
+7. Ctrl+V to paste, then Ctrl+Enter to run it. Leave this cell's output as a
+   Python object too.
 
 **Output cells**
 
-10. `Reactions` tab, cell `A1`: Insert Python, type `xl("Engine!B2")["reactions"]`,
-    then switch that cell's output to Excel Value so it spills as a table.
-11. `Displacements` tab, cell `A1`: same, with `["displacements"]`.
-12. `Summary` tab, cell `A1`: same, with `["summary"]` -- per-member max
+8. `Reactions` tab, cell `A1`: Insert Python, type `xl("Engine!B2")["reactions"]`,
+   then switch that cell's output to Excel Value so it spills as a table.
+9. `Displacements` tab, cell `A1`: same, with `["displacements"]`.
+10. `Summary` tab, cell `A1`: same, with `["summary"]` -- per-member max
     |N|, |V|, |M|, |deflection|.
-13. `Diagrams` tab: `B2` -> `xl("Engine!B4")["geometry_fig"]`,
+11. `Diagrams` tab: `B2` -> `xl("Engine!B4")["geometry_fig"]`,
     `B20` -> `xl("Engine!B4")["deformed_fig"]`. For a member's N/V/M diagram,
     put its id in `B39` and in `B40` use
     `xl("Engine!B4")["member_fig"](xl("B39"))`. Figures display as images
     automatically.
-14. Save.
+12. Save. If you like, you can now delete the staged text in `D2`/`D4` --
+    `B2`/`B4` no longer need it once they've run once.
 
 **Day to day after setup:** edit the input tabs and press Ctrl+Alt+F9
 (recalculate) -- everything downstream updates automatically. No re-pasting.
@@ -191,13 +192,15 @@ formulas won't run until the recipient clicks "Enable Editing."
 > **Caveat:** `engine_solver.py` and `engine_plotter.py` are validated against
 > the same closed-form test cases as the rest of this project (see
 > `tests/test_pyexcel_split_engine.py`), entirely headlessly with pandas
-> DataFrames standing in for `xl(...)` results. The cross-cell steps above --
-> referencing another cell's returned Python object via `xl("Engine!B2")`,
-> and a matplotlib Figure rendering as an image when returned that way --
-> follow Microsoft's documented Python-in-Excel pattern but could not be
-> exercised in real Excel, since there's no Excel available in this
-> environment. Exercise them once against a real workbook before relying on
-> this for anything important.
+> DataFrames standing in for `xl(...)` results -- including a test that
+> executes the *exact* staged text from `D2`/`D4` (not just the source
+> files) to make sure what actually gets pasted works. The cross-cell steps
+> above -- referencing another cell's returned Python object via
+> `xl("Engine!B2")`, and a matplotlib Figure rendering as an image when
+> returned that way -- follow Microsoft's documented Python-in-Excel pattern
+> but could not be exercised in real Excel, since there's no Excel available
+> in this environment. Exercise them once against a real workbook before
+> relying on this for anything important.
 
 Units are not enforced in either option -- pick one consistent set (e.g. N,
 m, Pa) and use it across every sheet.

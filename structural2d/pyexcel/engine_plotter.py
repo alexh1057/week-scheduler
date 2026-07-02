@@ -1,4 +1,4 @@
-# Paste into Engine!B4. End with: _r=run(xl("Engine!B2"));_r
+# Plotter for Engine!B4 (staged ready-to-paste in cell Engine!D4).
 import math,numpy as np,matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt

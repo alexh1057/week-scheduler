@@ -5,17 +5,23 @@ xlwings Excel add-in isn't possible (e.g. locked-down corporate laptops).
 
 Pure openpyxl, so it's testable headlessly. Unlike the xlwings template,
 this one cannot be made to run out of the box: there is no documented way
-for openpyxl to author the proprietary cell metadata Excel's Python-in-Excel
-feature needs for a "=PY(...)" formula to actually execute, so the six
-input sheets are real, usable Excel Tables (named to match the xl("...")
-calls the pasted code uses) but the Engine/Reactions/Displacements/Diagrams
-sheets are left as instructions -- seeing this workbook run requires a
-one-time manual paste into two Insert Python cells:
-  Engine!B2: engine_solver.py (math only, < 8192 chars)
-  Engine!B4: engine_plotter.py (matplotlib, < 8192 chars)
-Both are documented on the Instructions sheet and in the README.
+for openpyxl (or anything short of a live, licensed Excel session) to author
+the proprietary cell metadata Excel's Python-in-Excel feature needs for a
+"=PY(...)" formula to actually execute -- that metadata lives in Excel's
+undocumented Rich Value infrastructure and is tied to a live binding with
+Microsoft's cloud execution sandbox, not just formula text. So the six input
+sheets are real, usable Excel Tables (named to match the xl("...") calls the
+pasted code uses), and the two Engine cells (B2/B4) are left empty for a
+one-time manual "Insert Python" + paste -- but to make that paste itself as
+close to zero-effort as possible, the exact ready-to-paste code (source +
+the trailing run() call, all in one string) is staged in cells D2/D4 of the
+Engine sheet, generated from engine_solver.py/engine_plotter.py at build
+time. So setup is: click the staging cell, Ctrl+C, click B2/B4, Insert
+Python, Ctrl+V, Ctrl+Enter -- no other files need to be open.
 """
 from __future__ import annotations
+
+from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -33,6 +39,27 @@ BOOL_CHOICES = ["TRUE", "FALSE"]
 # Rows the section-name dropdown scans on the Sections sheet: the built-in
 # catalog plus headroom for user-added sections.
 SECTION_DROPDOWN_ROWS = 100
+
+_PYEXCEL_DIR = Path(__file__).resolve().parent.parent / "pyexcel"
+_SOLVER_RUN_LINE = (
+    '_r=run(xl("Nodes"),xl("Members"),xl("Supports"),xl("NodalLoads"),'
+    'xl("PointLoads"),xl("UDLs"),xl("Sections"));_r'
+)
+_PLOTTER_RUN_LINE = '_r=run(xl("Engine!B2"));_r'
+
+
+def _solver_paste_text() -> str:
+    """engine_solver.py's source with the run() call appended -- exactly
+    what the user should paste into Engine!B2, as a single string."""
+    source = (_PYEXCEL_DIR / "engine_solver.py").read_text().rstrip("\n")
+    return f"{source}\n{_SOLVER_RUN_LINE}"
+
+
+def _plotter_paste_text() -> str:
+    """engine_plotter.py's source with the run() call appended -- exactly
+    what the user should paste into Engine!B4, as a single string."""
+    source = (_PYEXCEL_DIR / "engine_plotter.py").read_text().rstrip("\n")
+    return f"{source}\n{_PLOTTER_RUN_LINE}"
 
 
 def _add_table(ws: Worksheet, name: str, headers: list[str], rows: list[list] | None, blank_rows: int = 0) -> None:
@@ -115,10 +142,15 @@ def _build_udls(wb: Workbook) -> None:
 def _build_engine(wb: Workbook) -> None:
     ws = wb.create_sheet("Engine")
     ws.column_dimensions["A"].width = 90
-    ws["A1"] = "Cell B2 (solver): Insert Python, paste engine_solver.py, append the run() call (see Instructions), Ctrl+Enter."
-    ws["A3"] = "Cell B4 (plotter): Insert Python, paste engine_plotter.py, append the run() call (see Instructions), Ctrl+Enter."
+    ws.column_dimensions["D"].width = 40
+    ws["A1"] = "Cell B2 (solver): click cell D2, Ctrl+C to copy it, then click B2, Formulas -> Insert Python, Ctrl+V, Ctrl+Enter."
+    ws["A3"] = "Cell B4 (plotter): click cell D4, Ctrl+C to copy it, then click B4, Formulas -> Insert Python, Ctrl+V, Ctrl+Enter."
     ws["A1"].font = Font(bold=True)
     ws["A3"].font = Font(bold=True)
+    ws["C1"] = "Ready-to-paste solver code (click D2 once, then Ctrl+C -- copies the whole cell, no need to select text):"
+    ws["C3"] = "Ready-to-paste plotter code (click D4 once, then Ctrl+C):"
+    ws["D2"] = _solver_paste_text()
+    ws["D4"] = _plotter_paste_text()
 
 
 def _build_reactions(wb: Workbook) -> None:
@@ -169,37 +201,35 @@ def _build_instructions(wb: Workbook) -> None:
         "  - Excel for Windows, Mac, or the web, Current Channel.",
         "",
         "One-time setup (do this once, then save -- the code is stored in the "
-        "workbook from then on)",
+        "workbook from then on). Nothing outside this workbook needs to be open --"
+        " the exact code to paste is already staged in cells D2/D4 of the Engine tab.",
         "  1. Fill in your structure on the Nodes/Members/Supports/NodalLoads/"
         "PointLoads/UDLs tabs (sample data is a simply supported beam -- replace it).",
         "  ---- Solver cell (Engine!B2) ----",
-        "  2. Go to the Engine tab, click cell B2. Formulas tab -> Insert Python.",
-        "  3. Open structural2d/pyexcel/engine_solver.py from the project and paste "
-        "its ENTIRE contents into the cell.",
-        "  4. On new lines at the end of that same cell, add:",
-        '       _r=run(xl("Nodes"),xl("Members"),xl("Supports"),xl("NodalLoads"),xl("PointLoads"),xl("UDLs"),xl("Sections"));_r',
-        "     (the semicolon + bare name at the end makes the cell return the result).",
-        "  5. Ctrl+Enter to run it. Leave this cell's Python output as a Python "
-        "object (not Excel Value) -- the plotter cell reads the object itself.",
+        "  2. Go to the Engine tab. Click cell D2 once (a single click selects the "
+        "whole cell -- you don't need to select the text inside it), then Ctrl+C.",
+        "  3. Click cell B2. Formulas tab -> Insert Python.",
+        "  4. Ctrl+V to paste, then Ctrl+Enter to run it. Leave this cell's Python "
+        "output as a Python object (not Excel Value) -- the plotter cell reads the "
+        "object itself.",
         "  ---- Plotter cell (Engine!B4) ----",
+        "  5. Click cell D4 once, then Ctrl+C.",
         "  6. Click cell B4. Formulas tab -> Insert Python.",
-        "  7. Open structural2d/pyexcel/engine_plotter.py and paste its ENTIRE "
-        "contents into the cell.",
-        "  8. On new lines at the end of that same cell, add:",
-        '       _r=run(xl("Engine!B2"));_r',
-        "  9. Ctrl+Enter to run it. Leave this cell's output as a Python object too.",
+        "  7. Ctrl+V to paste, then Ctrl+Enter to run it. Leave this cell's output "
+        "as a Python object too.",
         "  ---- Output cells ----",
-        "  10. Reactions tab, cell A1: Insert Python, type:",
+        "  8. Reactions tab, cell A1: Insert Python, type:",
         '        xl("Engine!B2")["reactions"]',
         "      then switch that cell's output to Excel Value so it spills as a table.",
-        "  11. Displacements tab, cell A1: same, with [\"displacements\"] instead.",
-        "  12. Summary tab, cell A1: same, with [\"summary\"] -- per-member max "
+        "  9. Displacements tab, cell A1: same, with [\"displacements\"] instead.",
+        "  10. Summary tab, cell A1: same, with [\"summary\"] -- per-member max "
         "|N|, |V|, |M|, |deflection|.",
-        "  13. Diagrams tab: B2 -> xl(\"Engine!B4\")[\"geometry_fig\"], "
+        "  11. Diagrams tab: B2 -> xl(\"Engine!B4\")[\"geometry_fig\"], "
         "B20 -> xl(\"Engine!B4\")[\"deformed_fig\"]. For a member's N/V/M diagram, "
         "put its id in B39 and in B40 use xl(\"Engine!B4\")[\"member_fig\"](xl(\"B39\")). "
         "Figures display as images automatically.",
-        "  14. Save the workbook.",
+        "  12. Save the workbook. If you like, delete the staged code in D2/D4 "
+        "afterwards -- B2/B4 no longer need them once they've run once.",
         "",
         "Day to day after setup",
         "  Edit the input tabs and press Ctrl+Alt+F9 (recalculate) -- everything "
@@ -216,11 +246,15 @@ def _build_instructions(wb: Workbook) -> None:
         "Caveat",
         "  engine_solver.py and engine_plotter.py are validated against the same "
         "closed-form test cases as the rest of this project (see "
-        "tests/test_pyexcel_split_engine.py). The cross-cell steps above -- "
-        "referencing another cell's returned Python object via xl(\"Engine!B2\"), "
-        "and a matplotlib Figure rendering as an image when returned that way -- "
-        "follow Microsoft's documented Python-in-Excel pattern but could not be "
-        "exercised in real Excel here (no Excel in this environment).",
+        "tests/test_pyexcel_split_engine.py); the code staged in D2/D4 is generated "
+        "from those same files at build time, so it's always in sync. The cross-cell "
+        "steps above -- referencing another cell's returned Python object via "
+        "xl(\"Engine!B2\"), and a matplotlib Figure rendering as an image when "
+        "returned that way -- follow Microsoft's documented Python-in-Excel pattern "
+        "but could not be exercised in real Excel here (no Excel in this "
+        "environment). There is also no documented way to author a working "
+        "Insert-Python cell without a live Excel session -- that's why D2/D4 are "
+        "staged text to copy-paste rather than B2/B4 already working on open.",
         "",
         "Input sheets (same column meanings as the xlwings version)",
         "  Nodes        -- id, x, y",

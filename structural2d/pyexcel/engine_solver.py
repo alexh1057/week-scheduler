@@ -1,4 +1,4 @@
-# Solver: paste into Engine!B2, then append the run() line (see Instructions sheet).
+# Solver for Engine!B2 (staged ready-to-paste in cell Engine!D2).
 import math,numpy as np,pandas as pd
 _E=RuntimeError
 def _nul(v):return v is None or(isinstance(v,float)and math.isnan(v))or str(v).strip()==""

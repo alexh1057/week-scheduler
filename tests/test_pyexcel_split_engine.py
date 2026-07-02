@@ -9,6 +9,8 @@ import importlib.util, pathlib
 import pandas as pd
 import pytest
 
+from structural2d.excel.build_pyexcel_template import _plotter_paste_text, _solver_paste_text
+
 # Load the modules from their source files (they're not importable as a
 # package since they're meant to be pasted verbatim into Excel cells)
 def _load(name):
@@ -20,6 +22,8 @@ def _load(name):
 
 solver = _load("engine_solver")
 plotter = _load("engine_plotter")
+
+PYEXCEL_CELL_LIMIT = 8192  # Microsoft's hard per-cell limit for Insert Python
 
 
 def _ssb_tables():
@@ -182,3 +186,58 @@ def test_summary_matches_closed_form():
     assert math.isclose(s.loc["m1", "max_abs_M"], P * L / 4, rel_tol=1e-6)
     # midspan deflection P*L^3 / (48*E*I)
     assert math.isclose(s.loc["m1", "max_abs_deflection"], P * L**3 / (48 * E * I), rel_tol=1e-3)
+
+
+def test_staged_paste_text_under_excel_cell_limit():
+    """_solver_paste_text()/_plotter_paste_text() are exactly what
+    build_pyexcel_template stages in Engine!D2/D4 for the user to
+    copy-paste into the Insert Python cells B2/B4 -- each must stay under
+    Excel's hard 8192-character per-cell limit, source + run() line
+    included, or the one-click paste breaks."""
+    assert len(_solver_paste_text()) < PYEXCEL_CELL_LIMIT
+    assert len(_plotter_paste_text()) < PYEXCEL_CELL_LIMIT
+
+
+def test_staged_solver_paste_text_executes_and_matches_closed_form():
+    """The exact string staged in Engine!D2 -- source plus the appended
+    run() line -- must itself be valid, runnable Python that reproduces
+    the same closed-form result, since that's what the user pastes
+    verbatim (not the .py file's contents plus manual typing)."""
+    code = _solver_paste_text()
+    body = "\n".join(code.splitlines()[:-1])  # drop the trailing run() line
+    ns = {}
+    exec(body, ns)
+    nodes, members, supports, nodal_loads, point_loads, udls = _ssb_tables()
+    sections = pd.DataFrame(columns=["name", "E", "A", "I"])
+    result = ns["run"](nodes, members, supports, nodal_loads, point_loads, udls, sections)
+    rx = result["reactions"].set_index("node_id")
+    assert math.isclose(rx.loc["1", "Ry"], 5000.0, rel_tol=1e-9)
+
+
+def test_staged_plotter_paste_text_executes_and_returns_figures():
+    code = _plotter_paste_text()
+    body = "\n".join(code.splitlines()[:-1])
+    ns = {}
+    exec(body, ns)
+    d = solver.run(*_ssb_tables())
+    out = ns["run"](d)
+    assert out["geometry_fig"] is not None
+    assert out["member_fig"]("m1") is not None
+
+
+def test_workbook_stages_the_same_paste_text_in_engine_D2_D4(tmp_path):
+    """build_pyexcel_template must actually write the staged text into the
+    workbook's Engine!D2/D4 cells (not just make it available as a helper
+    function) -- that's the whole point of the staging-cell workflow."""
+    from openpyxl import load_workbook
+
+    from structural2d.excel.build_pyexcel_template import build_pyexcel_template
+
+    path = tmp_path / "frame_model_pyexcel.xlsx"
+    build_pyexcel_template(str(path))
+    wb = load_workbook(str(path))
+    ws = wb["Engine"]
+    assert ws["D2"].value == _solver_paste_text()
+    assert ws["D4"].value == _plotter_paste_text()
+    assert ws["B2"].value is None  # left empty for the user's Insert Python
+    assert ws["B4"].value is None
